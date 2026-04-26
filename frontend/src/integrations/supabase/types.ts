@@ -184,6 +184,7 @@ export type Database = {
           full_name: string | null
           home_zip: string | null
           id: string
+          monthly_utility_bill_usd: number | null
           t_max_f: number
           t_min_f: number
           timezone: string
@@ -196,6 +197,7 @@ export type Database = {
           full_name?: string | null
           home_zip?: string | null
           id: string
+          monthly_utility_bill_usd?: number | null
           t_max_f?: number
           t_min_f?: number
           timezone?: string
@@ -208,6 +210,7 @@ export type Database = {
           full_name?: string | null
           home_zip?: string | null
           id?: string
+          monthly_utility_bill_usd?: number | null
           t_max_f?: number
           t_min_f?: number
           timezone?: string

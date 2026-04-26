@@ -5,5 +5,4 @@ export const qk = {
   externalData: (zip: string, date: string) =>
     ["externalData", zip, date] as const,
   chat: (threadId?: string) => ["chat", threadId ?? "new"] as const,
-  calendar: () => ["calendar"] as const,
 } as const;

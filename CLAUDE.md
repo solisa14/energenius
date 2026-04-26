@@ -42,7 +42,7 @@ Three-tier: React frontend → FastAPI backend → Supabase (Postgres + Auth).
 - All routes require `get_current_user_id` dependency (decodes Supabase JWT using `SUPABASE_JWT_SECRET`)
 - DB access exclusively via `get_supabase()` (service role key, `supabase-py`)
 - Pydantic models are the source of truth; `frontend/src/lib/api/types.ts` mirrors them manually
-- Routers: `recommendations`, `feedback`, `chat`, `calendar_sync`, `external_data`
+- Routers: `recommendations`, `feedback`, `chat`, `availability_actions`, `external_data`
 - Key services: `scoring.py` (wraps PuLP), `hvac.py`, `chat_orchestrator.py` (Backboard + Gemma fallback), `adaptation.py` (weight updates from feedback)
 
 **Recommendations data flow:**
@@ -52,8 +52,10 @@ Three-tier: React frontend → FastAPI backend → Supabase (Postgres + Auth).
 4. `MultiSolutionEngine` in `optimization/pulp_optimization_engine.py` runs MILP → 3 options (cost-optimized, balanced, comfort-optimized)
 5. HVAC schedule appended; response cached in `recommendations_cache` table
 
-**Supabase schema** (`supabase/migrations/0001_init.sql`):
-- Tables: `profiles`, `appliances`, `availability` (48-slot boolean array per day), `feedback_events`, `recommendations_cache`
+**Supabase schema** (`supabase/migrations/`):
+- Base: `0001_init.sql` — `profiles`, `appliances`, `availability` (48-slot array per day), `feedback_events`, `recommendations_cache`
+- `0002_gemma_availability_assistant.sql` — `availability_assistant_actions`, `profiles.timezone`, `appliances.requires_presence`
+- `0003_monthly_utility_bill.sql` — `profiles.monthly_utility_bill_usd`
 - RLS on all tables; trigger auto-creates `profiles` row on signup
 
 ## Environment Variables

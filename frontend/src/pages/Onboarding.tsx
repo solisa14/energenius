@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
-import { useNavigate, useSearchParams } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 import { useQueryClient } from "@tanstack/react-query";
-import type { Session } from "@supabase/supabase-js";
 import type { PostgrestError } from "@supabase/supabase-js";
 import {
   closestCenter,
@@ -24,24 +23,18 @@ import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import type { TablesInsert } from "@/integrations/supabase/types";
 import { useAuth } from "@/contexts/AuthContext";
-import { useCalendarSync } from "@/hooks/useCalendarSync";
-import { useAvailabilityActionReply } from "@/hooks/useAvailabilityActionReply";
 import { ApiError } from "@/lib/api/client";
-import type {
-  AvailabilityClarification,
-  AvailabilityResolution,
-} from "@/lib/api/types";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Progress } from "@/components/ui/progress";
 import { Slider } from "@/components/ui/slider";
 import { Switch } from "@/components/ui/switch";
-import { Textarea } from "@/components/ui/textarea";
 
 const DRAFT_KEY = "energenius.onboarding.draft";
 const TOTAL_STEPS = 5;
-const OAUTH_QUERY_VALUE = "oauth";
+const MIN_MONTHLY_BILL_USD = 1;
+const MAX_MONTHLY_BILL_USD = 9999;
 
 type PriorityKey = "cost" | "emissions" | "comfort";
 
@@ -62,10 +55,7 @@ interface DraftState {
   comfortRange: [number, number];
   priorities: PriorityKey[];
   appliances: ApplianceDraft[];
-  calendarDone: boolean;
-  clarifications: AvailabilityClarification[];
-  clarificationIndex: number;
-  calendarSummary: string;
+  monthlyUtilityBillUsd: string;
 }
 
 type ApiDetail = {
@@ -139,10 +129,6 @@ const PRIORITY_LABELS: Record<PriorityKey, { title: string; detail: string; icon
   },
 };
 
-function sleep(ms: number): Promise<void> {
-  return new Promise((resolve) => window.setTimeout(resolve, ms));
-}
-
 function parseApiDetail(detail: unknown): ApiDetail {
   if (detail && typeof detail === "object") {
     return detail as ApiDetail;
@@ -157,6 +143,8 @@ function isMigrationErrorMessage(text: string): boolean {
   const normalized = text.toLowerCase();
   return (
     normalized.includes("0002_gemma_availability_assistant") ||
+    normalized.includes("0003_monthly_utility_bill") ||
+    normalized.includes("monthly_utility_bill") ||
     normalized.includes("timezone") ||
     normalized.includes("requires_presence") ||
     normalized.includes("availability_assistant_actions") ||
@@ -170,7 +158,7 @@ function describeSaveError(error: unknown): string {
   if (error instanceof ApiError) {
     const detail = parseApiDetail(error.detail);
     if (detail.code === "setup_migration_missing") {
-      return "Latest Supabase setup is missing. Apply `supabase/migrations/0002_gemma_availability_assistant.sql`, then reload onboarding.";
+      return "Latest Supabase setup is missing. Apply `supabase/migrations/0002_gemma_availability_assistant.sql` and `0003_monthly_utility_bill.sql`, then reload onboarding.";
     }
     return detail.message || error.message;
   }
@@ -178,7 +166,7 @@ function describeSaveError(error: unknown): string {
     const postgrest = error as PostgrestError;
     const message = String(postgrest.message || "");
     if (isMigrationErrorMessage(message)) {
-      return "Latest Supabase setup is missing. Apply `supabase/migrations/0002_gemma_availability_assistant.sql`, then reload onboarding.";
+      return "Latest Supabase setup is missing. Apply the latest `supabase/migrations` SQL, then reload onboarding.";
     }
     if (message.toLowerCase().includes("jwt") || message.toLowerCase().includes("auth")) {
       return "Your session is no longer valid. Sign in again, then retry onboarding.";
@@ -191,58 +179,14 @@ function describeSaveError(error: unknown): string {
   return "Could not save onboarding.";
 }
 
-function describeCalendarError(error: unknown): string {
-  if (error instanceof ApiError) {
-    const detail = parseApiDetail(error.detail);
-    if (detail.code === "setup_migration_missing") {
-      return "Latest Supabase setup is missing. Apply `supabase/migrations/0002_gemma_availability_assistant.sql` before using Google Calendar.";
-    }
-    if (detail.code === "google_calendar_scope_missing") {
-      return detail.message || "Google Calendar rejected the provider token. Verify the Google provider, redirect URL, and calendar.readonly scope in Supabase.";
-    }
-    if (detail.code === "google_calendar_unavailable") {
-      return detail.message || "Google Calendar sync failed while contacting the backend.";
-    }
-    if (error.status === 401) {
-      return "The backend rejected your Supabase session. Check `SUPABASE_JWT_SECRET` in the backend and sign in again.";
-    }
-    return detail.message || error.message;
+function parseMonthlyUtilityBillUsd(raw: string): number | null {
+  const t = raw.trim().replace(/^\$/, "");
+  if (t === "") return null;
+  const n = Number(t);
+  if (!Number.isFinite(n) || n < MIN_MONTHLY_BILL_USD || n > MAX_MONTHLY_BILL_USD) {
+    return null;
   }
-  if (error instanceof Error) {
-    if (error.message.includes("Failed to fetch")) {
-      return "Calendar sync could not reach the FastAPI backend. Start the backend at `VITE_API_URL` and retry.";
-    }
-    return error.message;
-  }
-  return "Calendar sync failed.";
-}
-
-async function waitForProviderToken(session: Session | null): Promise<string> {
-  const direct = providerToken(session);
-  if (direct) return direct;
-
-  const deadline = Date.now() + 8000;
-  let sawSession = false;
-  while (Date.now() < deadline) {
-    const {
-      data: { session: freshSession },
-    } = await supabase.auth.getSession();
-    if (freshSession) {
-      sawSession = true;
-      const token = providerToken(freshSession);
-      if (token) return token;
-    }
-    await sleep(250);
-  }
-
-  if (sawSession) {
-    throw new Error(
-      "Google sign-in completed, but Supabase did not return a provider token. Verify the Google provider, redirect URL, and calendar.readonly scope.",
-    );
-  }
-  throw new Error(
-    "Google sign-in returned to onboarding, but the Supabase session was not restored. Sign in again and retry calendar connect.",
-  );
+  return Math.round(n * 100) / 100;
 }
 
 async function assertOnboardingSchemaReady(userId: string): Promise<void> {
@@ -330,10 +274,7 @@ function makeDefaultDraft(): DraftState {
     comfortRange: [68, 76],
     priorities: ["cost", "emissions", "comfort"],
     appliances: DEFAULT_APPLIANCES,
-    calendarDone: false,
-    clarifications: [],
-    clarificationIndex: 0,
-    calendarSummary: "",
+    monthlyUtilityBillUsd: "",
   };
 }
 
@@ -354,12 +295,8 @@ function readDraft(): DraftState {
       appliances: Array.isArray(parsed.appliances) && parsed.appliances.length > 0
         ? parsed.appliances as ApplianceDraft[]
         : DEFAULT_APPLIANCES,
-      clarifications: Array.isArray(parsed.clarifications)
-        ? parsed.clarifications as AvailabilityClarification[]
-        : [],
-      clarificationIndex: Number.isFinite(parsed.clarificationIndex)
-        ? Number(parsed.clarificationIndex)
-        : 0,
+      monthlyUtilityBillUsd:
+        typeof parsed.monthlyUtilityBillUsd === "string" ? parsed.monthlyUtilityBillUsd : "",
     };
   } catch {
     return makeDefaultDraft();
@@ -374,49 +311,36 @@ function stepCanAdvance(draft: DraftState): boolean {
     return draft.appliances.some((appliance) => appliance.enabled);
   }
   if (draft.step === 4) {
-    return draft.calendarDone && draft.clarificationIndex >= draft.clarifications.length;
+    return parseMonthlyUtilityBillUsd(draft.monthlyUtilityBillUsd) !== null;
   }
   return true;
 }
 
-function slotLabel(slot: number): string {
-  const normalized = slot % 48;
-  const hour = Math.floor(normalized / 2);
-  const minute = slot % 2 === 0 ? "00" : "30";
-  const suffix = hour >= 12 ? "PM" : "AM";
-  const displayHour = ((hour + 11) % 12) + 1;
-  return `${displayHour}:${minute} ${suffix}`;
-}
-
-function slotRangeLabel(clarification: AvailabilityClarification): string {
-  return `${slotLabel(clarification.start_slot)} - ${slotLabel(clarification.end_slot)}`;
-}
-
-function providerToken(session: Session | null): string | null {
-  return ((session as Session & { provider_token?: string | null } | null)?.provider_token ?? null);
+function billFieldHint(raw: string): string | null {
+  const t = raw.trim();
+  if (t === "") return null;
+  if (parseMonthlyUtilityBillUsd(raw) === null) {
+    return `Enter an amount between $${MIN_MONTHLY_BILL_USD} and $${MAX_MONTHLY_BILL_USD.toLocaleString()}.`;
+  }
+  return null;
 }
 
 export default function Onboarding() {
   const navigate = useNavigate();
-  const [searchParams, setSearchParams] = useSearchParams();
   const queryClient = useQueryClient();
-  const { user, session, loading } = useAuth();
-  const { syncAsync, isLoading: syncLoading } = useCalendarSync();
-  const { replyAsync, isLoading: replyLoading } = useAvailabilityActionReply();
+  const { user } = useAuth();
 
   const [draft, setDraft] = useState<DraftState>(() => readDraft());
   const [submitting, setSubmitting] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
-  const [calendarError, setCalendarError] = useState<string | null>(null);
-  const [reviewInput, setReviewInput] = useState("");
 
   const timezone = useMemo(
     () => Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC",
     [],
   );
 
-  const activeClarification = draft.clarifications[draft.clarificationIndex] ?? null;
   const canAdvance = stepCanAdvance(draft);
+  const billError = draft.step === 4 ? billFieldHint(draft.monthlyUtilityBillUsd) : null;
   const sensors = useSensors(
     useSensor(PointerSensor, {
       activationConstraint: { distance: 8 },
@@ -429,48 +353,6 @@ export default function Onboarding() {
   useEffect(() => {
     window.localStorage.setItem(DRAFT_KEY, JSON.stringify(draft));
   }, [draft]);
-
-  useEffect(() => {
-    if (searchParams.get("calendar") !== OAUTH_QUERY_VALUE) return;
-    if (draft.step < 4) {
-      setDraft((current) => ({ ...current, step: 4 }));
-    }
-  }, [draft.step, searchParams]);
-
-  useEffect(() => {
-    const oauthError = searchParams.get("error_description") || searchParams.get("error");
-    if (oauthError) {
-      setDraft((current) => ({ ...current, step: 4 }));
-      setCalendarError(oauthError);
-    }
-  }, [searchParams]);
-
-  useEffect(() => {
-    const shouldAutoSync = searchParams.get("calendar") === OAUTH_QUERY_VALUE;
-    if (!shouldAutoSync || draft.calendarDone || syncLoading || loading) return;
-    void (async () => {
-      try {
-        const token = await waitForProviderToken(session);
-        const result = await syncAsync({ provider_token: token, timezone });
-        setDraft((current) => ({
-          ...current,
-          step: 4,
-          calendarDone: true,
-          clarifications: result.clarifications,
-          clarificationIndex: 0,
-          calendarSummary: result.summary,
-        }));
-        setCalendarError(null);
-        const next = new URLSearchParams(searchParams);
-        next.delete("calendar");
-        next.delete("error");
-        next.delete("error_description");
-        setSearchParams(next, { replace: true });
-      } catch (error) {
-        setCalendarError(describeCalendarError(error));
-      }
-    })();
-  }, [draft.calendarDone, loading, searchParams, session, setSearchParams, syncAsync, syncLoading, timezone]);
 
   const setStep = (step: number) => {
     setDraft((current) => ({ ...current, step }));
@@ -516,6 +398,8 @@ export default function Onboarding() {
 
   const persistProfileAndAppliances = async () => {
     if (!user) throw new Error("No signed-in user.");
+    const bill = parseMonthlyUtilityBillUsd(draft.monthlyUtilityBillUsd);
+    if (bill === null) throw new Error("Invalid monthly utility bill.");
     await assertOnboardingSchemaReady(user.id);
     const profilePatch = {
       full_name: draft.fullName.trim(),
@@ -526,6 +410,7 @@ export default function Onboarding() {
       carbon_weight: weights.emissions,
       comfort_weight: weights.comfort,
       timezone,
+      monthly_utility_bill_usd: bill,
     };
     const { error: profileError } = await supabase
       .from("profiles")
@@ -573,122 +458,6 @@ export default function Onboarding() {
     }
   };
 
-  const startCalendarSync = async (token: string | null) => {
-    setCalendarError(null);
-    if (!token) {
-      setDraft((current) => ({
-        ...current,
-        calendarDone: true,
-        clarifications: [],
-        clarificationIndex: 0,
-        calendarSummary:
-          "Using the default workweek schedule for now: weekdays 9 AM to 5 PM away, weekends at home.",
-      }));
-      toast.success("Default availability applied.");
-      return;
-    }
-    try {
-      const result = await syncAsync({ provider_token: token, timezone });
-      setDraft((current) => ({
-        ...current,
-        calendarDone: true,
-        clarifications: result.clarifications,
-        clarificationIndex: 0,
-        calendarSummary: result.summary,
-      }));
-      toast.success("Availability imported.");
-    } catch (error) {
-      setCalendarError(describeCalendarError(error));
-    }
-  };
-
-  const handleConnectCalendar = async () => {
-    const {
-      data: { session: freshSession },
-    } = await supabase.auth.getSession();
-    const token = providerToken(session) ?? providerToken(freshSession);
-    if (token) {
-      await startCalendarSync(token);
-      return;
-    }
-    const { error } = await supabase.auth.signInWithOAuth({
-      provider: "google",
-      options: {
-        scopes: "https://www.googleapis.com/auth/calendar.readonly",
-        queryParams: {
-          access_type: "offline",
-          prompt: "consent",
-        },
-        redirectTo: `${window.location.origin}/onboarding?calendar=${OAUTH_QUERY_VALUE}`,
-      },
-    });
-    if (error) {
-      setCalendarError(describeCalendarError(error));
-    }
-  };
-
-  const handleSkipCalendar = async () => {
-    await startCalendarSync(null);
-  };
-
-  const handleClarificationResolution = async (
-    resolution: AvailabilityResolution,
-    clarification: AvailabilityClarification,
-  ) => {
-    try {
-      const response = await replyAsync({
-        actionId: clarification.action_id,
-        body: { resolution },
-      });
-      if (response.clarification) {
-        setDraft((current) => {
-          const next = [...current.clarifications];
-          next[current.clarificationIndex] = response.clarification!;
-          return { ...current, clarifications: next };
-        });
-        return;
-      }
-      setDraft((current) => ({
-        ...current,
-        clarificationIndex: Math.min(
-          current.clarificationIndex + 1,
-          current.clarifications.length,
-        ),
-      }));
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Could not apply that answer.");
-    }
-  };
-
-  const handleClarificationMessage = async () => {
-    if (!activeClarification || !reviewInput.trim()) return;
-    try {
-      const response = await replyAsync({
-        actionId: activeClarification.action_id,
-        body: { message: reviewInput.trim() },
-      });
-      if (response.clarification) {
-        setDraft((current) => {
-          const next = [...current.clarifications];
-          next[current.clarificationIndex] = response.clarification!;
-          return { ...current, clarifications: next };
-        });
-        setReviewInput("");
-        return;
-      }
-      setReviewInput("");
-      setDraft((current) => ({
-        ...current,
-        clarificationIndex: Math.min(
-          current.clarificationIndex + 1,
-          current.clarifications.length,
-        ),
-      }));
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Could not send that answer.");
-    }
-  };
-
   const heroCopy = [
     {
       title: "Hi! Let's set up your home.",
@@ -707,8 +476,8 @@ export default function Onboarding() {
       subtitle: "Set the order once. The optimizer and Gemma both use the same priorities.",
     },
     {
-      title: "Connect your calendar",
-      subtitle: "Gemma can reason over your real schedule, ask questions when it’s unsure, and keep availability honest.",
+      title: "What’s a typical month on your power bill?",
+      subtitle: "We use this as a cost baseline to frame savings from shifting load to cleaner, cheaper hours.",
     },
   ] as const;
 
@@ -748,16 +517,16 @@ export default function Onboarding() {
             />
             <div className="grid gap-3 text-sm text-white/60 sm:grid-cols-3">
               <div className="rounded-2xl border border-white/10 bg-black/20 p-4">
-                <p className="text-white">48-slot availability</p>
-                <p className="mt-1">Gemma updates the same boolean grid the optimizer uses.</p>
+                <p className="text-white">Zip-accurate rates</p>
+                <p className="mt-1">We tie mock price curves to your home zip and grid mix.</p>
               </div>
               <div className="rounded-2xl border border-white/10 bg-black/20 p-4">
-                <p className="text-white">Clarify, don’t guess</p>
-                <p className="mt-1">Ambiguous events stay pending until you answer them.</p>
+                <p className="text-white">Your real bill</p>
+                <p className="mt-1">A monthly total helps us speak in dollars, not abstract kilowatt jargon.</p>
               </div>
               <div className="rounded-2xl border border-white/10 bg-black/20 p-4">
-                <p className="text-white">Schedule-aware</p>
-                <p className="mt-1">Home-required appliances now avoid away windows automatically.</p>
+                <p className="text-white">Optimizer-backed</p>
+                <p className="mt-1">MILP scheduling respects comfort, grid carbon, and when you are home.</p>
               </div>
             </div>
           </div>
@@ -955,113 +724,42 @@ export default function Onboarding() {
             )}
 
             {draft.step === 4 && (
-              <div className="space-y-5">
-                <div className="grid gap-3 sm:grid-cols-2">
-                  <Button
-                    type="button"
-                    onClick={handleConnectCalendar}
-                    disabled={syncLoading}
-                    className="h-14 rounded-2xl bg-slate-950 text-white hover:bg-slate-800"
-                  >
-                    {syncLoading ? "Analyzing…" : "Connect Google Calendar"}
-                  </Button>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    onClick={handleSkipCalendar}
-                    disabled={syncLoading}
-                    className="h-14 rounded-2xl border-slate-300 bg-white text-slate-950 hover:bg-slate-100"
-                  >
-                    Skip for now
-                  </Button>
-                </div>
-
-                <div className="rounded-3xl border border-slate-200 bg-white p-4">
-                  <p className="text-sm uppercase tracking-[0.16em] text-slate-500">Availability summary</p>
-                  <p className="mt-2 text-sm leading-6 text-slate-700">
-                    {draft.calendarSummary || "No calendar data yet. You can connect Google Calendar or use the default workweek schedule."}
-                  </p>
-                  <p className="mt-3 text-xs text-slate-500">
-                    Browser timezone: <span className="font-medium text-slate-700">{timezone}</span>
-                  </p>
-                  {calendarError && (
-                    <p className="mt-3 text-sm text-rose-600">{calendarError}</p>
-                  )}
-                </div>
-
-                {activeClarification ? (
-                  <div className="rounded-3xl border border-slate-200 bg-white p-4">
-                    <p className="text-xs uppercase tracking-[0.16em] text-slate-500">
-                      Clarification {draft.clarificationIndex + 1} of {draft.clarifications.length}
-                    </p>
-                    <div className="mt-4 flex gap-3">
-                      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-slate-950 text-white">
-                        <span className="material-symbols-outlined text-[20px]">smart_toy</span>
-                      </div>
-                      <div className="min-w-0 flex-1 rounded-[24px] bg-slate-100 px-4 py-3 text-sm leading-6 text-slate-800">
-                        <p>{activeClarification.question_text}</p>
-                        <p className="mt-2 text-xs uppercase tracking-[0.16em] text-slate-500">
-                          {activeClarification.date} · {slotRangeLabel(activeClarification)}
-                        </p>
-                      </div>
-                    </div>
-                    <div className="mt-4 flex flex-wrap gap-2">
-                      <Button
-                        type="button"
-                        variant="outline"
-                        disabled={replyLoading}
-                        className="border-slate-300 bg-white text-slate-950 hover:bg-slate-100"
-                        onClick={() => void handleClarificationResolution("home", activeClarification)}
-                      >
-                        Home
-                      </Button>
-                      <Button
-                        type="button"
-                        variant="outline"
-                        disabled={replyLoading}
-                        className="border-slate-300 bg-white text-slate-950 hover:bg-slate-100"
-                        onClick={() => void handleClarificationResolution("away", activeClarification)}
-                      >
-                        Away
-                      </Button>
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        disabled={replyLoading}
-                        className="text-slate-950 hover:bg-slate-100"
-                        onClick={() => void handleClarificationResolution("skip", activeClarification)}
-                      >
-                        Skip
-                      </Button>
-                    </div>
-                    <div className="mt-4 space-y-3">
-                      <Textarea
-                        value={reviewInput}
-                        onChange={(event) => setReviewInput(event.target.value)}
-                        placeholder="Or answer in plain English, like: I’ll be home."
-                        className="min-h-[110px] rounded-2xl border-slate-300 bg-white text-slate-950 placeholder:text-slate-400"
-                      />
-                      <Button
-                        type="button"
-                        onClick={() => void handleClarificationMessage()}
-                        disabled={replyLoading || reviewInput.trim().length === 0}
-                        className="rounded-2xl bg-slate-950 text-white hover:bg-slate-800"
-                      >
-                        Send answer
-                      </Button>
-                    </div>
+              <div className="space-y-6">
+                <div>
+                  <label className="mb-2 block text-sm font-medium text-slate-700">
+                    Average monthly utility bill (USD)
+                  </label>
+                  <div className="relative">
+                    <span className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-base text-slate-500">
+                      $
+                    </span>
+                    <Input
+                      inputMode="decimal"
+                      value={draft.monthlyUtilityBillUsd}
+                      onChange={(event) =>
+                        setDraft((current) => ({
+                          ...current,
+                          monthlyUtilityBillUsd: event.target.value,
+                        }))
+                      }
+                      placeholder="185"
+                      className="h-14 rounded-2xl border-slate-300 bg-white pl-8 pr-11 text-base text-slate-950 placeholder:text-slate-400"
+                    />
+                    {parseMonthlyUtilityBillUsd(draft.monthlyUtilityBillUsd) !== null && (
+                      <span className="material-symbols-outlined absolute right-3 top-1/2 -translate-y-1/2 text-emerald-500">
+                        check_circle
+                      </span>
+                    )}
                   </div>
-                ) : draft.calendarDone ? (
-                  <div className="rounded-3xl border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-900">
-                    <div className="flex items-center gap-2 font-medium">
-                      <span className="material-symbols-outlined text-[20px]">check_circle</span>
-                      Schedule review complete
-                    </div>
-                    <p className="mt-2">
-                      Gemma has everything it needs for your initial availability profile.
-                    </p>
-                  </div>
-                ) : null}
+                  {billError && <p className="mt-2 text-sm text-rose-600">{billError}</p>}
+                  <p className="mt-3 text-sm text-slate-500">
+                    A ballpark is fine. We use it to contextualize potential savings, not to bill you.
+                  </p>
+                </div>
+                <div className="rounded-3xl border border-slate-200 bg-white p-4 text-sm text-slate-600">
+                  <p className="text-xs uppercase tracking-[0.16em] text-slate-500">Timezone</p>
+                  <p className="mt-1 font-medium text-slate-800">{timezone}</p>
+                </div>
               </div>
             )}
           </div>
@@ -1071,7 +769,7 @@ export default function Onboarding() {
               type="button"
               variant="ghost"
               onClick={handleBack}
-              disabled={draft.step === 0 || submitting || syncLoading || replyLoading}
+              disabled={draft.step === 0 || submitting}
               className="text-slate-950 hover:bg-slate-100"
             >
               Back

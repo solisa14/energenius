@@ -3,11 +3,7 @@
 
 import { supabase } from "@/integrations/supabase/client";
 import type {
-  AvailabilityActionReplyRequest,
-  AvailabilityActionReplyResponse,
   ChatResponse,
-  CalendarSyncRequest,
-  CalendarSyncResponse,
   DailyRecommendation,
   ExternalData,
   FeedbackEvent,
@@ -131,31 +127,6 @@ export async function postChat(
     body: JSON.stringify({ message, thread_id: threadId }),
   });
   return handle<ChatResponse>(res, "postChat");
-}
-
-export async function syncCalendar(
-  body: CalendarSyncRequest,
-): Promise<CalendarSyncResponse> {
-  const headers = await getAuthHeaders();
-  const res = await fetch(`${API_BASE}/api/calendar-sync`, {
-    method: "POST",
-    headers,
-    body: JSON.stringify(body),
-  });
-  return handle<CalendarSyncResponse>(res, "syncCalendar");
-}
-
-export async function respondAvailabilityAction(
-  actionId: string,
-  body: AvailabilityActionReplyRequest,
-): Promise<AvailabilityActionReplyResponse> {
-  const headers = await getAuthHeaders();
-  const res = await fetch(`${API_BASE}/api/availability-actions/${encodeURIComponent(actionId)}/respond`, {
-    method: "POST",
-    headers,
-    body: JSON.stringify(body),
-  });
-  return handle<AvailabilityActionReplyResponse>(res, "respondAvailabilityAction");
 }
 
 export async function getExternalData(

@@ -97,11 +97,6 @@ export interface ExternalData {
   hourly_temp_f: number[];
 }
 
-export interface DayAvailability {
-  date: IsoDate;
-  slots: boolean[];
-}
-
 export type AvailabilityAssistantStatus =
   | "pending"
   | "applied"
@@ -116,40 +111,4 @@ export interface AvailabilityAssistantAction {
   affected_dates: IsoDate[];
   refresh_recommendations: boolean;
   summary: string;
-}
-
-export interface AvailabilityClarification {
-  action_id: string;
-  source: AvailabilityAssistantSource;
-  date: IsoDate;
-  start_slot: number;
-  end_slot: number;
-  question_text: string;
-  set_home?: boolean | null;
-}
-
-export interface CalendarSyncResponse {
-  days: DayAvailability[];
-  clarifications: AvailabilityClarification[];
-  summary: string;
-}
-
-export interface CalendarSyncRequest {
-  provider_token?: string | null;
-  timezone?: string | null;
-}
-
-export type AvailabilityResolution = "home" | "away" | "skip";
-
-export interface AvailabilityActionReplyRequest {
-  resolution?: AvailabilityResolution | null;
-  message?: string | null;
-}
-
-export interface AvailabilityActionReplyResponse {
-  ok: boolean;
-  reply: string;
-  action: AvailabilityAssistantAction;
-  clarification?: AvailabilityClarification | null;
-  days?: DayAvailability[] | null;
 }

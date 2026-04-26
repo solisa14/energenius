@@ -20,7 +20,6 @@ from backend.app.models.schemas import (
     AvailabilityActionReplyResponse,
     AvailabilityAssistantAction,
     AvailabilityClarification,
-    CalendarSyncResponse,
     DayAvailability,
 )
 from backend.app.services.calendar_parser import (
@@ -28,20 +27,7 @@ from backend.app.services.calendar_parser import (
     apply_slot_change,
     default_slots_for_day,
     safe_zoneinfo,
-    slot_range_for_interval,
 )
-from backend.app.services.google_calendar import (
-    build_day_events_local,
-    fetch_events_for_local_days,
-)
-
-
-class CalendarSyncFailure(Exception):
-    def __init__(self, code: str, message: str, status_code: int = 400) -> None:
-        super().__init__(message)
-        self.code = code
-        self.message = message
-        self.status_code = status_code
 
 
 _MONTHS = {
@@ -58,41 +44,6 @@ _MONTHS = {
     "november": 11,
     "december": 12,
 }
-
-_HOME_HINTS = (
-    "wfh",
-    "work from home",
-    "remote",
-    "zoom",
-    "virtual",
-    "telehealth",
-    "at home",
-    "home office",
-)
-_AWAY_HINTS = (
-    "dentist",
-    "doctor",
-    "appointment",
-    "flight",
-    "airport",
-    "trip",
-    "travel",
-    "office",
-    "commute",
-    "school",
-    "pickup",
-    "dropoff",
-    "soccer",
-    "practice",
-    "restaurant",
-    "lunch",
-    "dinner",
-    "gym",
-    "haircut",
-    "barber",
-    "errand",
-)
-_UNCERTAIN_HINTS = ("busy", "meeting", "focus", "hold", "tentative")
 
 _STATE_HOME_RE = re.compile(
     r"\b(i(?:'| a)?ll be home|i am home|i'm home|be home|at home|working from home|work from home|wfh)\b",
@@ -119,14 +70,6 @@ _TIME_RANGE_RE = re.compile(
     r"(?P<end>\d{1,2}(?::\d{2})?\s*(?:am|pm)?)",
     re.IGNORECASE,
 )
-
-
-@dataclass(frozen=True)
-class CalendarEventDecision:
-    state: Literal["home", "away", "unknown"]
-    reason: str
-    confidence: float
-    question_text: str | None = None
 
 
 @dataclass(frozen=True)
@@ -182,51 +125,6 @@ def _profile(user_id: str) -> dict[str, Any]:
     return dict(response.data or {})
 
 
-def _looks_like_missing_setup(exc: Exception) -> bool:
-    text = str(exc).lower()
-    return any(
-        needle in text
-        for needle in (
-            "timezone",
-            "requires_presence",
-            "availability_assistant_actions",
-            "column",
-            "relation",
-            "does not exist",
-        )
-    )
-
-
-def _ensure_onboarding_schema_ready(user_id: str) -> None:
-    supabase = get_supabase()
-    try:
-        prof = (
-            supabase.table("profiles")
-            .select("id,timezone")
-            .eq("id", user_id)
-            .execute()
-        )
-        rows = list(prof.data or [])
-        if not rows:
-            raise CalendarSyncFailure(
-                "profile_missing",
-                "The profile row for this user is missing. Verify the auth trigger created `profiles` rows before onboarding.",
-                status_code=500,
-            )
-        supabase.table("appliances").select("id,requires_presence").limit(1).execute()
-        supabase.table("availability_assistant_actions").select("id").limit(1).execute()
-    except CalendarSyncFailure:
-        raise
-    except Exception as exc:  # noqa: BLE001
-        if _looks_like_missing_setup(exc):
-            raise CalendarSyncFailure(
-                "setup_migration_missing",
-                "Latest Supabase setup is missing. Apply `supabase/migrations/0002_gemma_availability_assistant.sql` before onboarding or Google Calendar sync.",
-                status_code=500,
-            ) from exc
-        raise
-
-
 def _timezone_for_user(user_id: str, timezone_hint: str | None = None) -> str:
     if timezone_hint:
         return str(safe_zoneinfo(timezone_hint).key)
@@ -255,12 +153,6 @@ def _upsert_day_slots(user_id: str, target_date: date, slots: list[bool]) -> Day
     payload = {"user_id": user_id, "date": target_date.isoformat(), "slots": slots}
     get_supabase().table("availability").upsert(payload, on_conflict="user_id,date").execute()
     return DayAvailability(date=target_date, slots=slots)
-
-
-def _clear_pending_calendar_actions(user_id: str) -> None:
-    get_supabase().table("availability_assistant_actions").update(
-        {"status": "cancelled", "updated_at": datetime.utcnow().isoformat()}
-    ).eq("user_id", user_id).eq("source", "calendar_sync").eq("status", "pending").execute()
 
 
 def _create_action(
@@ -514,59 +406,6 @@ async def _gemma_json(system_prompt: str, user_prompt: str) -> dict[str, Any] | 
     return _safe_json_load(text)
 
 
-def _heuristic_calendar_decision(event: dict[str, str]) -> CalendarEventDecision:
-    text = " ".join(
-        [event.get("summary", ""), event.get("description", ""), event.get("location", "")]
-    ).lower()
-    if any(hint in text for hint in _HOME_HINTS):
-        return CalendarEventDecision("home", "Calendar details explicitly mention home or remote attendance.", 0.95)
-    if any(hint in text for hint in _AWAY_HINTS):
-        return CalendarEventDecision("away", "Calendar details strongly suggest the user is away from home.", 0.9)
-    location = event.get("location", "").strip()
-    if location and "home" not in location.lower():
-        return CalendarEventDecision("away", "A non-home location was attached to the event.", 0.82)
-    if any(hint in text for hint in _UNCERTAIN_HINTS):
-        return CalendarEventDecision("unknown", "The event sounds busy but does not confirm location.", 0.3)
-    return CalendarEventDecision("unknown", "The event did not make home presence certain.", 0.2)
-
-
-async def _calendar_event_decision(event: dict[str, str]) -> CalendarEventDecision:
-    heuristic = _heuristic_calendar_decision(event)
-    system_prompt = (
-        "You classify whether a homeowner is definitely home, definitely away, or unknown "
-        "from a calendar event. Return JSON only with keys state, reason, confidence. "
-        "Allowed states: home, away, unknown. If there is any ambiguity, choose unknown."
-    )
-    user_prompt = json.dumps(
-        {
-            "summary": event.get("summary", ""),
-            "description": event.get("description", ""),
-            "location": event.get("location", ""),
-            "start": event.get("start", ""),
-            "end": event.get("end", ""),
-            "rules": [
-                "Only infer home or away when the event makes it certain.",
-                "Meeting or busy without location should be unknown.",
-                "WFH, Zoom, virtual, remote, or home can be home.",
-                "Dentist, doctor, airport, travel, office, or a clear non-home location can be away.",
-            ],
-        }
-    )
-    payload = await _gemma_json(system_prompt, user_prompt)
-    if not payload:
-        return heuristic
-    state = str(payload.get("state") or "").lower()
-    if state not in {"home", "away", "unknown"}:
-        return heuristic
-    confidence = float(payload.get("confidence") or 0.0)
-    reason = str(payload.get("reason") or heuristic.reason)
-    if state == "unknown":
-        return CalendarEventDecision("unknown", reason, confidence)
-    if confidence < 0.8:
-        return CalendarEventDecision("unknown", "The model was not certain enough to auto-apply the event.", confidence)
-    return CalendarEventDecision(state, reason, confidence)
-
-
 def _heuristic_chat_decision(message: str, timezone_name: str | None) -> ChatDecision:
     state = _state_from_text(message)
     target_date = _parse_date_phrase(message, timezone_name)
@@ -745,108 +584,6 @@ def _apply_availability_action(
             raw_user_message=raw_user_message,
         )
     return day, row
-
-
-async def sync_calendar_availability(
-    user_id: str,
-    provider_token: str | None = None,
-    timezone_hint: str | None = None,
-) -> CalendarSyncResponse:
-    _ensure_onboarding_schema_ready(user_id)
-    timezone_name = _timezone_for_user(user_id, timezone_hint)
-    start_day = _today_local(timezone_name)
-    days = [DayAvailability(date=start_day + timedelta(days=i), slots=default_slots_for_day(start_day + timedelta(days=i))) for i in range(7)]
-    day_map = {item.date: list(item.slots) for item in days}
-    clarifications: list[AvailabilityClarification] = []
-    applied_count = 0
-    question_count = 0
-
-    _clear_pending_calendar_actions(user_id)
-
-    if provider_token:
-        try:
-            events = fetch_events_for_local_days(
-                provider_token,
-                start_day,
-                start_day + timedelta(days=7),
-                timezone_name,
-            )
-        except PermissionError:
-            raise CalendarSyncFailure(
-                "google_calendar_scope_missing",
-                "Google Calendar rejected the provider token. Verify the Google provider is enabled in Supabase and includes the calendar.readonly scope.",
-                status_code=400,
-            ) from None
-        except Exception as exc:  # noqa: BLE001
-            print(f"calendar sync error: {exc!s}", file=sys.stderr)  # noqa: T201
-            raise CalendarSyncFailure(
-                "google_calendar_unavailable",
-                "Google Calendar sync failed while fetching events. Verify the backend is running and the Google OAuth configuration is complete.",
-                status_code=502,
-            ) from exc
-        for target_date in list(day_map):
-            for event in build_day_events_local(events, target_date, timezone_name):
-                slot_range = slot_range_for_interval(
-                    event.get("start"),
-                    event.get("end"),
-                    target_date,
-                    timezone_name,
-                )
-                if slot_range is None:
-                    continue
-                start_slot, end_slot = slot_range
-                decision = await _calendar_event_decision(event)
-                if decision.state in {"home", "away"}:
-                    day_map[target_date] = apply_slot_change(
-                        day_map[target_date],
-                        start_slot,
-                        end_slot,
-                        decision.state == "home",
-                    )
-                    _create_action(
-                        user_id=user_id,
-                        source="calendar_sync",
-                        status="applied",
-                        target_date=target_date,
-                        start_slot=start_slot,
-                        end_slot=end_slot,
-                        set_home=(decision.state == "home"),
-                        reason=decision.reason,
-                        raw_user_message=event.get("summary") or None,
-                    )
-                    applied_count += 1
-                    continue
-                question = (
-                    f"While analyzing your schedule, I found '{event.get('summary') or 'this event'}' on "
-                    f"{target_date.isoformat()} from {_slot_window_label(start_slot, end_slot)} and couldn't tell "
-                    "if you'd be home or away. Which should I use?"
-                )
-                row = _create_action(
-                    user_id=user_id,
-                    source="calendar_sync",
-                    status="pending",
-                    target_date=target_date,
-                    start_slot=start_slot,
-                    end_slot=end_slot,
-                    question_text=question,
-                    reason=decision.reason,
-                    raw_user_message=event.get("summary") or None,
-                )
-                clarifications.append(_clarification_from_row(row))
-                question_count += 1
-
-    stored_days = [
-        _upsert_day_slots(user_id, target_date, slots)
-        for target_date, slots in sorted(day_map.items(), key=lambda item: item[0])
-    ]
-    if provider_token:
-        summary = (
-            f"I reviewed your next 7 days, confidently updated {applied_count} calendar blocks, "
-            f"and left {question_count} clarification{'s' if question_count != 1 else ''}."
-        )
-    else:
-        summary = "I set up a default workweek schedule for the next 7 days. You can connect Google Calendar later for smarter availability."
-    return CalendarSyncResponse(days=stored_days, clarifications=clarifications, summary=summary)
 
 
 def _reply_for_resolution(

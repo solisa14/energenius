@@ -126,13 +126,6 @@ class DayAvailability(BaseModel):
         return v
 
 
-class CalendarSyncRequest(BaseModel):
-    """Body for POST /api/calendar-sync. `provider_token` is the Google OAuth access token from the Supabase session; not stored server-side."""
-
-    provider_token: str | None = None
-    timezone: str | None = None
-
-
 AvailabilityAssistantSource = Literal["calendar_sync", "chat_edit"]
 AvailabilityAssistantStatus = Literal["pending", "applied", "skipped", "cancelled"]
 AvailabilityResolution = Literal["home", "away", "skip"]
@@ -154,12 +147,6 @@ class AvailabilityClarification(BaseModel):
     end_slot: int
     question_text: str
     set_home: bool | None = None
-
-
-class CalendarSyncResponse(BaseModel):
-    days: list[DayAvailability]
-    clarifications: list[AvailabilityClarification]
-    summary: str
 
 
 class AvailabilityActionReplyRequest(BaseModel):
