@@ -30,13 +30,19 @@ def _parse_iso_datetime(value: Any) -> datetime | None:
     return parsed.astimezone(timezone.utc).replace(tzinfo=None)
 
 
-def parse_to_availability(events: list[dict[str, Any]]) -> list[bool]:
+def parse_to_availability(
+    events: list[dict[str, Any]], target_date: date | None = None
+) -> list[bool]:
     """
     48 bools, True = home free. Default all True; busy events clear slots.
-    `start` / `end` are ISO-8601 strings.
+    `start` / `end` are ISO-8601 strings. If `target_date` is set, the day window
+    is that date (wall-clock UTC); else the first event's date sets the day.
     """
     slots = [True] * SLOTS_PER_DAY
-    day0: datetime | None = None
+    if target_date is not None:
+        day0: datetime | None = _day_start_utcish(target_date)
+    else:
+        day0 = None
     for ev in events:
         t0 = _parse_iso_datetime(ev.get("start"))
         t1 = _parse_iso_datetime(ev.get("end"))

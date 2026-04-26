@@ -122,3 +122,9 @@ class DayAvailability(BaseModel):
         if len(v) != 48:
             raise ValueError("slots must have length 48")
         return v
+
+
+class CalendarSyncRequest(BaseModel):
+    """Body for POST /api/calendar-sync. `provider_token` is the Google OAuth access token from the Supabase session; not stored server-side."""
+
+    provider_token: str | None = None
