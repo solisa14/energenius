@@ -344,15 +344,22 @@ function HourRulerRow() {
     <div className="flex w-full border-b border-border">
       <div className="shrink-0" style={{ width: LABEL_COL_W }} aria-hidden />
       <div
-        className="grid min-w-0 flex-1 text-center text-caption font-medium text-text-tertiary"
+        className="grid min-w-0 flex-1 text-center"
         style={{
           gridTemplateColumns: `repeat(${HOURS}, minmax(0, 1fr))`,
           minWidth: TIMELINE_MIN_W - LABEL_COL_W,
         }}
       >
         {Array.from({ length: HOURS }).map((_, h) => (
-          <div key={h} className="py-2">
-            {formatHourLabel(h)}
+          <div
+            key={h}
+            className={cn(
+              "py-2 text-body-sm font-semibold",
+              h % 2 === 0 ? "text-foreground/80" : "text-transparent",
+            )}
+            aria-label={formatHourLabel(h)}
+          >
+            {h % 2 === 0 ? formatHourLabel(h) : "·"}
           </div>
         ))}
       </div>

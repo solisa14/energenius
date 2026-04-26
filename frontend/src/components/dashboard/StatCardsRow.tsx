@@ -184,11 +184,6 @@ function StatCard({
               </div>
             </>
           )}
-          <div className="mt-1 flex justify-between text-caption text-text-tertiary">
-            <span>{chartType === "pie" ? "Day 1" : "14d ago"}</span>
-            <span>{chartType === "pie" ? `Day ${series.length}` : "Today"}</span>
-          </div>
-
           <p className="text-caption text-muted-foreground mt-4">{caption}</p>
         </Card>
       </button>
