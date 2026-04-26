@@ -1,6 +1,14 @@
 import { Link, useNavigate } from "react-router-dom";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { useTheme } from "@/contexts/ThemeContext";
 import { useAuth } from "@/contexts/AuthContext";
 
@@ -42,13 +50,37 @@ export function TopBar() {
         </Button>
 
         {user ? (
-          <button
-            onClick={() => signOut()}
-            title="Sign out"
-            className="flex h-8 w-8 items-center justify-center rounded-full bg-accent-primary text-accent-primary-foreground text-body-sm font-semibold transition-transform hover:scale-105"
-          >
-            {initials}
-          </button>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <button
+                title="Open user menu"
+                className="flex h-8 w-8 items-center justify-center rounded-full bg-accent-primary text-accent-primary-foreground text-body-sm font-semibold transition-transform hover:scale-105"
+              >
+                {initials}
+              </button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-56">
+              <DropdownMenuLabel>
+                <div className="flex flex-col">
+                  <span className="text-body-sm text-muted-foreground">{user.email}</span>
+                </div>
+              </DropdownMenuLabel>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem onClick={() => navigate("/dashboard")}>
+                Dashboard
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => navigate("/recommendations")}>
+                Recommendations
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => navigate("/settings")}>
+                Account & Settings
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem onClick={() => signOut()}>
+                Log out
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         ) : (
           <Button size="sm" onClick={() => navigate("/login")}>Log In</Button>
         )}
