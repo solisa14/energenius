@@ -7,3 +7,4 @@ supabase>=2.28.3,<3.0
 httpx>=0.28,<1.0
 pulp>=3.3,<4.0
 python-dotenv>=1.0,<2.0
+google-genai>=1.0,<2.0

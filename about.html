@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>About | EnerGenius</title>
+
+  <style>
+    :root {
+      color-scheme: dark;
+      --background: #000;
+      --surface: rgba(204, 255, 0, 0.05);
+      --surface-border: rgba(204, 255, 0, 0.2);
+      --surface-glow: rgba(204, 255, 0, 0.25);
+      --text: #fff;
+      --muted: #aaa;
+      --accent: #ccff00;
+      --accent-alt: #7affff;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      min-height: 100vh;
+      margin: 0;
+      background:
+        radial-gradient(circle at center, rgba(122, 255, 255, 0.08), transparent 30rem),
+        radial-gradient(circle at center, #050505, var(--background));
+      color: var(--text);
+      font-family: "Segoe UI", Roboto, sans-serif;
+    }
+
+    .title {
+      padding: 60px 20px 20px;
+      text-align: center;
+    }
+
+    .title h1 {
+      margin: 0;
+      background: linear-gradient(90deg, var(--accent), var(--accent-alt));
+      -webkit-background-clip: text;
+      background-clip: text;
+      color: transparent;
+      font-size: clamp(2.5rem, 8vw, 5rem);
+      letter-spacing: -0.06em;
+      line-height: 0.95;
+    }
+
+    .team {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: center;
+      gap: 25px;
+      padding: 40px 20px 80px;
+    }
+
+    .card {
+      width: min(220px, 100%);
+      padding: 20px;
+      border: 1px solid var(--surface-border);
+      background: var(--surface);
+      cursor: pointer;
+      filter: grayscale(1);
+      opacity: 0.6;
+      text-align: center;
+      transition:
+        filter 180ms ease,
+        opacity 180ms ease,
+        transform 180ms ease,
+        box-shadow 180ms ease;
+    }
+
+    .card:hover,
+    .card:focus-within {
+      box-shadow: 0 0 20px var(--surface-glow);
+      filter: grayscale(0);
+      opacity: 1;
+      transform: translateY(-6px);
+    }
+
+    .avatar {
+      display: flex;
+      width: 70px;
+      height: 70px;
+      align-items: center;
+      justify-content: center;
+      margin: 0 auto 15px;
+      border-radius: 50%;
+      background: #333;
+      color: var(--muted);
+      font-weight: 700;
+      transition:
+        background 180ms ease,
+        color 180ms ease;
+    }
+
+    .card:hover .avatar,
+    .card:focus-within .avatar {
+      background: linear-gradient(135deg, var(--accent), var(--accent-alt));
+      color: #000;
+    }
+
+    .card h3 {
+      margin: 10px 0;
+      color: var(--accent);
+      font-size: 1.1rem;
+    }
+
+    .card p {
+      margin: 0;
+      color: var(--muted);
+      font-size: 0.9rem;
+      line-height: 1.5;
+    }
+  </style>
+</head>
+
+<body>
+  <main>
+    <section class="title" aria-labelledby="team-title">
+      <h1 id="team-title">Our Team</h1>
+    </section>
+
+    <section class="team" aria-label="EnerGenius team members">
+      <article class="card" tabindex="0">
+        <div class="avatar" aria-hidden="true">ZA</div>
+        <h3>Zeinab Alizadeh</h3>
+        <p>Optimization &amp; Energy Systems</p>
+      </article>
+
+      <article class="card" tabindex="0">
+        <div class="avatar" aria-hidden="true">M2</div>
+        <h3>Member Name</h3>
+        <p>Frontend / UI</p>
+      </article>
+
+      <article class="card" tabindex="0">
+        <div class="avatar" aria-hidden="true">M3</div>
+        <h3>Member Name</h3>
+        <p>Backend / Data</p>
+      </article>
+
+      <article class="card" tabindex="0">
+        <div class="avatar" aria-hidden="true">M4</div>
+        <h3>Member Name</h3>
+        <p>Analytics / Product</p>
+      </article>
+    </section>
+  </main>
+</body>
+</html>
