@@ -5,7 +5,6 @@ from __future__ import annotations
 import asyncio
 import json
 import sys
-from typing import Any
 
 import httpx
 
@@ -26,39 +25,33 @@ async def backboard_chat(
     """Create thread if needed, send message, return normalized ChatResponse."""
     settings = get_settings()
     base = settings.backboard_base_url.rstrip("/")
-    headers = {
-        "X-API-Key": settings.backboard_api_key,
-        "Content-Type": "application/json",
-    }
+    headers = {"X-API-Key": settings.backboard_api_key}
     tid = thread_id
     try:
         async with httpx.AsyncClient(timeout=30.0) as client:
             if not tid:
                 r = await client.post(
                     f"{base}/assistants/{settings.backboard_assistant_id}/threads",
-                    headers={"X-API-Key": settings.backboard_api_key, "Content-Type": "application/json"},
+                    headers=headers,
                     json={},
                 )
                 r.raise_for_status()
                 data = r.json()
                 tid = str(data.get("thread_id", "") or data.get("threadId", ""))
             if not tid:
-                return ChatResponse(
-                    reply=_FALLBACK_REPLY, thread_id="fallback", sources=None
-                )
-            body: dict[str, Any] = {
+                raise ValueError("Backboard did not return a thread_id")
+            form_data = {
                 "content": message,
                 "llm_provider": "google",
                 "model_name": "gemma-4-31b-it",
-                "stream": False,
+                "stream": "false",
                 "memory": "Auto",
                 "web_search": "Auto",
-                "metadata": json.dumps({"energenius_user_id": user_id}),
             }
             r2 = await client.post(
                 f"{base}/threads/{tid}/messages",
                 headers=headers,
-                json=body,
+                data=form_data,
             )
             r2.raise_for_status()
             out = r2.json()
@@ -79,15 +72,10 @@ async def backboard_chat(
     out_tid = str(
         out.get("thread_id", tid or "") or out.get("threadId", tid or "fallback")
     )
-    src = out.get("retrieved_memories")
-    if isinstance(src, list):
-        sources: list[dict] | None = [dict(m) for m in src if isinstance(m, dict)]
-    else:
-        sources = None
     return ChatResponse(
         reply=reply,
         thread_id=out_tid,
-        sources=sources,
+        sources=None,
     )
 
 

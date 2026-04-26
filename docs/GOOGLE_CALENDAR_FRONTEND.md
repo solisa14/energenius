@@ -19,7 +19,7 @@ await supabase.auth.signInWithOAuth({
 });
 ```
 
-2. After session is established, read the Google access token: `const { data: { session } } = await supabase.auth.getSession();` and use `session?.provider_token`.
+1. After session is established, read the Google access token: `const { data: { session } } = await supabase.auth.getSession();` and use `session?.provider_token`.
 
 ## API
 
