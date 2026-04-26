@@ -11,6 +11,15 @@ RecommendationLabel = Literal["best", "balanced", "convenient"]
 
 GridMixSnapshot: TypeAlias = dict[str, float]
 
+DataSourceTier = Literal["real", "partial", "mock"]
+
+
+class DataSourceMeta(BaseModel):
+    data_source: DataSourceTier
+    warnings: list[str]
+    fetched_at: datetime
+    grid_zone: str | None = None
+
 
 class ApplianceConfig(BaseModel):
     id: str
@@ -60,6 +69,8 @@ class DailyRecommendation(BaseModel):
     hvac_schedule: list[TimelineSlot]
     grid_mix_now: GridMixSnapshot
     totals: SavingsSummary
+    data_source: DataSourceMeta
+    current_carbon_intensity_g_per_kwh: float | None = None
 
 
 class FeedbackEvent(BaseModel):
@@ -110,6 +121,14 @@ class ExternalData(BaseModel):
         if len(self.hourly_temp_f) != 24:
             raise ValueError("hourly_temp_f must have length 24")
         return self
+
+
+class ExternalDataResponse(BaseModel):
+    prices: list[float]
+    carbon: list[float]
+    hourly_temp_f: list[float]
+    data_source: DataSourceMeta
+    current_carbon_intensity_g_per_kwh: float | None = None
 
 
 class DayAvailability(BaseModel):

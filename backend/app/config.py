@@ -12,6 +12,7 @@ class Settings(BaseSettings):
     backboard_assistant_id: str
     google_ai_api_key: str = ""
     gemma_model_name: str = "gemma-4-31b-it"
+    electricity_maps_api_key: str = ""
 
     model_config = SettingsConfigDict(
         env_file=(".env", "backend/.env"),

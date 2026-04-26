@@ -1,8 +1,9 @@
 """
 GET /api/recommendations?date=yyyy-mm-dd
 
-Data flow: JWT -> profile/appliances/availability -> mock external data ->
-`generate_three_options` (PuLP) -> `hvac_schedule` -> grid mix -> `DailyRecommendation`.
+Data flow: JWT -> profile/appliances/availability -> real external data
+(OpenWeatherMap + Electricity Maps) -> `generate_three_options` (PuLP) ->
+`hvac_schedule` -> grid mix -> `DailyRecommendation` with data_source metadata.
 """
 from __future__ import annotations
 
@@ -19,11 +20,10 @@ from backend.app.models.schemas import (
     ApplianceName,
     ApplianceRecommendation,
     DailyRecommendation,
-    GridMixSnapshot,
     SavingsSummary,
     UserWeights,
 )
-from backend.app.services.external_data import get_grid_mix_now, get_mock_external_data
+from backend.app.services.external_data_real import build_external_data
 from backend.app.services.hvac import hvac_schedule
 from backend.app.services.scoring import generate_three_options
 
@@ -129,7 +129,7 @@ def _normalize_weights(
 
 
 @router.get("/recommendations", response_model=DailyRecommendation)
-def get_recommendations(
+async def get_recommendations(
     date_param: date | None = Query(
         None, alias="date", description="ISO date; default today (UTC)"
     ),
@@ -191,7 +191,14 @@ def get_recommendations(
     else:
         availability = [True] * 48
 
-    ed = get_mock_external_data(home_zip, date_iso)
+    bundle = await build_external_data(home_zip, date_iso)
+    ed = bundle.external
+
+    # Rolling 24h horizon: slot 0 = current hour (UTC) rounded down.
+    base_datetime = datetime.now(tz=timezone.utc).replace(
+        minute=0, second=0, microsecond=0
+    )
+
     opts = generate_three_options(
         apps,
         ed.prices,
@@ -199,7 +206,7 @@ def get_recommendations(
         weights,
         circuit,
         quiet_list,
-        d,
+        base_datetime,
     )
     ar_list: list[ApplianceRecommendation] = []
     for cfg in apps:
@@ -220,9 +227,10 @@ def get_recommendations(
         t_min,
         t_max,
         availability,
-        date_iso,
+        base_datetime,
+        ed.prices,
+        ed.carbon,
     )
-    grid: GridMixSnapshot = dict(get_grid_mix_now(home_zip))
 
     total_cost = 0.0
     save_sum = 0.0
@@ -246,6 +254,8 @@ def get_recommendations(
         date=d,
         appliances=ar_list,
         hvac_schedule=hv,
-        grid_mix_now=grid,
+        grid_mix_now=bundle.grid_mix,
         totals=totals,
+        data_source=bundle.meta,
+        current_carbon_intensity_g_per_kwh=bundle.current_carbon_g_per_kwh,
     )

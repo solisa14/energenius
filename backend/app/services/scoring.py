@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import date, datetime, time, timedelta
+from datetime import datetime, timedelta
 from typing import Any, cast
 
 from backend.app.models.schemas import (
@@ -81,9 +81,9 @@ def score_slot(
 
 
 def _slot_datetimes(
-    d: date, start_slot: int, duration: int
+    base: datetime, start_slot: int, duration: int
 ) -> tuple[datetime, datetime]:
-    start = datetime.combine(d, time.min) + timedelta(minutes=30 * start_slot)
+    start = base + timedelta(minutes=30 * start_slot)
     end = start + timedelta(minutes=30 * duration)
     return start, end
 
@@ -163,7 +163,7 @@ def generate_three_options(
     weights: UserWeights,
     circuit_power_limit: float,
     quiet_hours: list[int],
-    recommendation_date: date,
+    base_datetime: datetime,
 ) -> dict[str, list[RecommendationOption]]:
     """
     Build three options from `optimization.MultiSolutionEngine`.
@@ -230,7 +230,7 @@ def generate_three_options(
             w_usd = _worst_baseline_usd(a, prices)
             w_g = _worst_baseline_co2(a, carbon)
             sc = score_slot(start_slot, a, prices, carbon, weights)
-            st, en = _slot_datetimes(recommendation_date, start_slot, a.duration)
+            st, en = _slot_datetimes(base_datetime, start_slot, a.duration)
             slot = TimelineSlot(
                 start=st,
                 end=en,
@@ -258,6 +258,7 @@ if __name__ == "__main__":
 
     _ed = get_mock_external_data("85718", "2026-04-26")
     _w = UserWeights(cost=0.4, emissions=0.2, satisfaction=0.4)
+    _base = datetime(2026, 4, 26, 0, 0, 0)
 
     _opts = generate_three_options(
         [
@@ -277,7 +278,7 @@ if __name__ == "__main__":
         _w,
         7.2,
         [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 44, 45, 46, 47],
-        date(2026, 4, 26),
+        _base,
     )
     for _app_id, _lst in _opts.items():
         for _o in _lst:
