@@ -15,6 +15,7 @@ class Appliance:
     earliest_start: int
     latest_finish: int
     is_noisy: bool
+    requires_presence: bool
     satisfaction_by_time: dict[int, float]
 
 
@@ -61,11 +62,12 @@ class MultiSolutionEngine:
         carbon: list[float] = data["carbon"]
         circuit_limit: float = data["circuitPowerLimit"]
         quiet_hours: set[int] = set(data.get("quietHours", []))
+        availability: list[bool] = [bool(x) for x in data.get("availability", [True] * len(time_periods))]
 
         weights = Weights(**data["weights"])
         appliances = [self._parse_appliance(a) for a in data["appliances"]]
 
-        self._validate_inputs(time_periods, prices, carbon, appliances, weights)
+        self._validate_inputs(time_periods, prices, carbon, appliances, weights, availability)
 
         horizon = len(time_periods)
 
@@ -120,6 +122,13 @@ class MultiSolutionEngine:
             if a.is_noisy:
                 for t in quiet_hours:
                     if t in time_periods:
+                        prob += x[(a.id, t)] == 0
+
+        # 6) Presence constraint for appliances that require the user to be home
+        for a in appliances:
+            if a.requires_presence:
+                for t in time_periods:
+                    if not availability[t]:
                         prob += x[(a.id, t)] == 0
 
         # Objective ---------------------------------------------------------
@@ -253,6 +262,7 @@ class MultiSolutionEngine:
             earliest_start=int(raw["earliestStart"]),
             latest_finish=int(raw["latestFinish"]),
             is_noisy=bool(raw.get("isNoisy", False)),
+            requires_presence=bool(raw.get("requiresPresence", False)),
             satisfaction_by_time=satisfaction,
         )
 
@@ -263,12 +273,15 @@ class MultiSolutionEngine:
         carbon: list[float],
         appliances: list[Appliance],
         weights: Weights,
+        availability: list[bool],
     ) -> None:
         horizon = len(time_periods)
         if len(prices) != horizon or len(carbon) != horizon:
             raise ValueError(
                 "prices and carbon arrays must match the time horizon"
             )
+        if len(availability) != horizon:
+            raise ValueError("availability must match the time horizon")
 
         if sorted(time_periods) != list(range(horizon)):
             raise ValueError(

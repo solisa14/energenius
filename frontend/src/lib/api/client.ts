@@ -3,9 +3,12 @@
 
 import { supabase } from "@/integrations/supabase/client";
 import type {
+  AvailabilityActionReplyRequest,
+  AvailabilityActionReplyResponse,
   ChatResponse,
+  CalendarSyncRequest,
+  CalendarSyncResponse,
   DailyRecommendation,
-  DayAvailability,
   ExternalData,
   FeedbackEvent,
   FeedbackResponse,
@@ -38,9 +41,37 @@ class ApiError extends Error {
     public status: number,
     message: string,
     public body?: string,
+    public detail?: unknown,
   ) {
     super(message);
     this.name = "ApiError";
+  }
+}
+
+function parseErrorBody(body: string): { message: string; detail?: unknown } {
+  if (!body) {
+    return { message: "" };
+  }
+  try {
+    const parsed = JSON.parse(body) as { detail?: unknown; message?: unknown };
+    const detail = parsed.detail ?? parsed.message ?? parsed;
+    if (typeof detail === "string") {
+      return { message: detail, detail };
+    }
+    if (
+      detail &&
+      typeof detail === "object" &&
+      "message" in detail &&
+      typeof (detail as { message?: unknown }).message === "string"
+    ) {
+      return {
+        message: String((detail as { message: string }).message),
+        detail,
+      };
+    }
+    return { message: body, detail };
+  } catch {
+    return { message: body };
   }
 }
 
@@ -50,7 +81,13 @@ async function handle<T>(res: Response, label: string): Promise<T> {
     if (import.meta.env.DEV) {
       console.error(`[api] ${label} failed:`, res.status, body);
     }
-    throw new ApiError(res.status, `${label} failed: ${res.status}`, body);
+    const parsed = parseErrorBody(body);
+    throw new ApiError(
+      res.status,
+      parsed.message || `${label} failed: ${res.status}`,
+      body,
+      parsed.detail,
+    );
   }
   return (await res.json()) as T;
 }
@@ -96,14 +133,29 @@ export async function postChat(
   return handle<ChatResponse>(res, "postChat");
 }
 
-/** Backend currently ignores body; no provider token is required for the demo. */
-export async function syncCalendar(): Promise<DayAvailability[]> {
+export async function syncCalendar(
+  body: CalendarSyncRequest,
+): Promise<CalendarSyncResponse> {
   const headers = await getAuthHeaders();
   const res = await fetch(`${API_BASE}/api/calendar-sync`, {
     method: "POST",
     headers,
+    body: JSON.stringify(body),
   });
-  return handle<DayAvailability[]>(res, "syncCalendar");
+  return handle<CalendarSyncResponse>(res, "syncCalendar");
+}
+
+export async function respondAvailabilityAction(
+  actionId: string,
+  body: AvailabilityActionReplyRequest,
+): Promise<AvailabilityActionReplyResponse> {
+  const headers = await getAuthHeaders();
+  const res = await fetch(`${API_BASE}/api/availability-actions/${encodeURIComponent(actionId)}/respond`, {
+    method: "POST",
+    headers,
+    body: JSON.stringify(body),
+  });
+  return handle<AvailabilityActionReplyResponse>(res, "respondAvailabilityAction");
 }
 
 export async function getExternalData(

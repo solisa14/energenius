@@ -30,7 +30,7 @@ const App = () => (
               <Route path="/signup" element={<Signup />} />
               <Route
                 path="/onboarding"
-                element={<ProtectedRoute><Onboarding /></ProtectedRoute>}
+                element={<ProtectedRoute requireOnboarded={false}><Onboarding /></ProtectedRoute>}
               />
               <Route
                 path="/dashboard"

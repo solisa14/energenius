@@ -21,6 +21,7 @@ export type Database = {
           id: string
           name: string
           power_kw: number | null
+          requires_presence: boolean
           user_id: string
         }
         Insert: {
@@ -29,6 +30,7 @@ export type Database = {
           id?: string
           name: string
           power_kw?: number | null
+          requires_presence?: boolean
           user_id: string
         }
         Update: {
@@ -37,6 +39,7 @@ export type Database = {
           id?: string
           name?: string
           power_kw?: number | null
+          requires_presence?: boolean
           user_id?: string
         }
         Relationships: [
@@ -68,6 +71,65 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "availability_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      availability_assistant_actions: {
+        Row: {
+          created_at: string
+          date: string
+          end_slot: number
+          id: string
+          question_text: string | null
+          raw_user_message: string | null
+          reason: string | null
+          set_home: boolean | null
+          source: string
+          start_slot: number
+          status: string
+          thread_id: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          date: string
+          end_slot: number
+          id?: string
+          question_text?: string | null
+          raw_user_message?: string | null
+          reason?: string | null
+          set_home?: boolean | null
+          source: string
+          start_slot: number
+          status: string
+          thread_id?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          date?: string
+          end_slot?: number
+          id?: string
+          question_text?: string | null
+          raw_user_message?: string | null
+          reason?: string | null
+          set_home?: boolean | null
+          source?: string
+          start_slot?: number
+          status?: string
+          thread_id?: string | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "availability_assistant_actions_user_id_fkey"
             columns: ["user_id"]
             isOneToOne: false
             referencedRelation: "profiles"
@@ -124,6 +186,7 @@ export type Database = {
           id: string
           t_max_f: number
           t_min_f: number
+          timezone: string
         }
         Insert: {
           carbon_weight?: number
@@ -135,6 +198,7 @@ export type Database = {
           id: string
           t_max_f?: number
           t_min_f?: number
+          timezone?: string
         }
         Update: {
           carbon_weight?: number
@@ -146,6 +210,7 @@ export type Database = {
           id?: string
           t_max_f?: number
           t_min_f?: number
+          timezone?: string
         }
         Relationships: []
       }

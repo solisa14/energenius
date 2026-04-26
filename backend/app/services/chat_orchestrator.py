@@ -9,6 +9,7 @@ from typing import Any
 import httpx
 
 from backend.app.models.schemas import ChatResponse
+from backend.app.services.availability_assistant import handle_chat_message
 from backend.app.services.backboard_client import (
     BackboardMemory,
     ensure_thread,
@@ -77,6 +78,24 @@ async def hybrid_chat(
         tid = await ensure_thread(thread_id)
     except (httpx.HTTPError, ValueError) as exc:
         _report_backboard_error("thread", user_id, exc)
+
+    assistant_outcome = await handle_chat_message(
+        user_id,
+        message,
+        tid if tid != "fallback" else None,
+    )
+    if assistant_outcome is not None:
+        if tid != "fallback":
+            try:
+                await store_assistant_memory(user_id, message, assistant_outcome.reply)
+            except (httpx.HTTPError, ValueError) as exc:
+                _report_backboard_error("store assistant memory", user_id, exc)
+        return ChatResponse(
+            reply=assistant_outcome.reply,
+            thread_id=tid,
+            sources=None,
+            assistant_action=assistant_outcome.action,
+        )
 
     if tid != "fallback":
         try:

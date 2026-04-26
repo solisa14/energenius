@@ -88,6 +88,7 @@ export interface ChatResponse {
   thread_id: string;
   /** Mirrors backend: arbitrary source dicts. */
   sources?: Record<string, unknown>[] | null;
+  assistant_action?: AvailabilityAssistantAction | null;
 }
 
 export interface ExternalData {
@@ -101,7 +102,54 @@ export interface DayAvailability {
   slots: boolean[];
 }
 
-/** Kept for future use if POST /api/calendar-sync accepts a body. */
+export type AvailabilityAssistantStatus =
+  | "pending"
+  | "applied"
+  | "skipped"
+  | "cancelled";
+
+export type AvailabilityAssistantSource = "calendar_sync" | "chat_edit";
+
+export interface AvailabilityAssistantAction {
+  status: AvailabilityAssistantStatus;
+  action_id?: string | null;
+  affected_dates: IsoDate[];
+  refresh_recommendations: boolean;
+  summary: string;
+}
+
+export interface AvailabilityClarification {
+  action_id: string;
+  source: AvailabilityAssistantSource;
+  date: IsoDate;
+  start_slot: number;
+  end_slot: number;
+  question_text: string;
+  set_home?: boolean | null;
+}
+
+export interface CalendarSyncResponse {
+  days: DayAvailability[];
+  clarifications: AvailabilityClarification[];
+  summary: string;
+}
+
 export interface CalendarSyncRequest {
   provider_token?: string | null;
+  timezone?: string | null;
+}
+
+export type AvailabilityResolution = "home" | "away" | "skip";
+
+export interface AvailabilityActionReplyRequest {
+  resolution?: AvailabilityResolution | null;
+  message?: string | null;
+}
+
+export interface AvailabilityActionReplyResponse {
+  ok: boolean;
+  reply: string;
+  action: AvailabilityAssistantAction;
+  clarification?: AvailabilityClarification | null;
+  days?: DayAvailability[] | null;
 }

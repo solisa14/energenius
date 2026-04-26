@@ -1,35 +1,31 @@
-"""
-POST /api/calendar-sync — 7-day default work-week availability for the demo.
-"""
+"""POST /api/calendar-sync — sync calendar into availability and clarifications."""
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException
 
 from backend.app.auth import get_current_user_id
-from backend.app.database import get_supabase
-from backend.app.models.schemas import DayAvailability
-from backend.app.services.calendar_parser import default_weekly_availability
+from backend.app.models.schemas import CalendarSyncRequest, CalendarSyncResponse
+from backend.app.services.availability_assistant import (
+    CalendarSyncFailure,
+    sync_calendar_availability,
+)
 
 router = APIRouter()
 
 
-@router.post("/calendar-sync", response_model=list[DayAvailability])
-def post_calendar_sync(
+@router.post("/calendar-sync", response_model=CalendarSyncResponse)
+async def post_calendar_sync(
+    body: CalendarSyncRequest,
     user_id: str = Depends(get_current_user_id),
-) -> list[DayAvailability]:
-    supabase = get_supabase()
-    days = default_weekly_availability()
-    rows = [
-        {
-            "user_id": user_id,
-            "date": d.date.isoformat(),
-            "slots": d.slots,
-        }
-        for d in days
-    ]
-    if rows:
-        supabase.table("availability").upsert(
-            rows,
-            on_conflict="user_id,date",
-        ).execute()
-    return days
+) -> CalendarSyncResponse:
+    try:
+        return await sync_calendar_availability(
+            user_id,
+            provider_token=body.provider_token,
+            timezone_hint=body.timezone,
+        )
+    except CalendarSyncFailure as exc:
+        raise HTTPException(
+            status_code=exc.status_code,
+            detail={"code": exc.code, "message": exc.message},
+        ) from exc

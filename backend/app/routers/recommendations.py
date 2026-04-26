@@ -24,6 +24,7 @@ from backend.app.models.schemas import (
     UserWeights,
 )
 from backend.app.services.external_data import get_grid_mix_now, get_mock_external_data
+from backend.app.services.calendar_parser import default_slots_for_day
 from backend.app.services.hvac import hvac_schedule
 from backend.app.services.scoring import generate_three_options
 
@@ -77,6 +78,7 @@ def _row_to_config(row: dict[str, Any]) -> ApplianceConfig:
         earliestStart=earliest_start,
         latestFinish=latest_finish,
         isNoisy=bool(row.get("is_noisy", False)),
+        requiresPresence=bool(row.get("requires_presence", False)),
         satisfactionByTime=_satisfaction_map(row.get("satisfaction_by_time")),
     )
 
@@ -92,6 +94,7 @@ def _default_appliances() -> list[ApplianceConfig]:
             earliestStart=34,
             latestFinish=44,
             isNoisy=True,
+            requiresPresence=True,
             satisfactionByTime=dict(base),
         ),
         ApplianceConfig(
@@ -102,6 +105,7 @@ def _default_appliances() -> list[ApplianceConfig]:
             earliestStart=0,
             latestFinish=16,
             isNoisy=False,
+            requiresPresence=False,
             satisfactionByTime=dict(base),
         ),
         ApplianceConfig(
@@ -112,6 +116,7 @@ def _default_appliances() -> list[ApplianceConfig]:
             earliestStart=20,
             latestFinish=40,
             isNoisy=False,
+            requiresPresence=False,
             satisfactionByTime=dict(base),
         ),
     ]
@@ -187,9 +192,9 @@ def get_recommendations(
         if isinstance(slot_row, list) and len(slot_row) == 48:
             availability = [bool(x) for x in slot_row]
         else:
-            availability = [True] * 48
+            availability = default_slots_for_day(d)
     else:
-        availability = [True] * 48
+        availability = default_slots_for_day(d)
 
     ed = get_mock_external_data(home_zip, date_iso)
     opts = generate_three_options(
@@ -200,6 +205,7 @@ def get_recommendations(
         circuit,
         quiet_list,
         d,
+        availability,
     )
     ar_list: list[ApplianceRecommendation] = []
     for cfg in apps:

@@ -51,12 +51,16 @@ def score_slot(
     prices: list[float],
     carbon: list[float],
     weights: UserWeights,
+    availability: list[bool] | None = None,
 ) -> float:
     """Score a single start window using the same objective terms as the engine."""
     s_lo = appliance.earliestStart
     s_hi = appliance.latestFinish - appliance.duration
     if s_lo > s_hi or start_slot < s_lo or start_slot > s_hi:
         return 1.0
+    if availability is not None and appliance.requiresPresence:
+        if any(not availability[t] for t in range(start_slot, start_slot + appliance.duration)):
+            return 1.0
     cost_expr = sum(
         prices[t] * appliance.powerKw
         for t in range(start_slot, start_slot + appliance.duration)
@@ -89,27 +93,41 @@ def _slot_datetimes(
 
 
 def _worst_baseline_usd(
-    a: ApplianceConfig, prices: list[float]
+    a: ApplianceConfig, prices: list[float], availability: list[bool] | None = None
 ) -> float:
     s_lo = a.earliestStart
     s_hi = a.latestFinish - a.duration
     if s_lo > s_hi:
         return 0.0
-    return max(
-        _run_usd(a, s, prices) for s in range(s_lo, s_hi + 1)
-    )
+    feasible = [
+        s
+        for s in range(s_lo, s_hi + 1)
+        if availability is None
+        or not a.requiresPresence
+        or all(availability[t] for t in range(s, s + a.duration))
+    ]
+    if not feasible:
+        return 0.0
+    return max(_run_usd(a, s, prices) for s in feasible)
 
 
 def _worst_baseline_co2(
-    a: ApplianceConfig, carbon: list[float]
+    a: ApplianceConfig, carbon: list[float], availability: list[bool] | None = None
 ) -> float:
     s_lo = a.earliestStart
     s_hi = a.latestFinish - a.duration
     if s_lo > s_hi:
         return 0.0
-    return max(
-        _run_co2_grams(a, s, carbon) for s in range(s_lo, s_hi + 1)
-    )
+    feasible = [
+        s
+        for s in range(s_lo, s_hi + 1)
+        if availability is None
+        or not a.requiresPresence
+        or all(availability[t] for t in range(s, s + a.duration))
+    ]
+    if not feasible:
+        return 0.0
+    return max(_run_co2_grams(a, s, carbon) for s in feasible)
 
 
 def _optimizer_payload(
@@ -119,12 +137,14 @@ def _optimizer_payload(
     weights: UserWeights,
     circuit_power_limit: float,
     quiet_hours: list[int],
+    availability: list[bool],
 ) -> dict[str, Any]:
     return {
         "timePeriods": list(range(48)),
         "slotMinutes": 30,
         "prices": prices,
         "carbon": carbon,
+        "availability": availability,
         "circuitPowerLimit": circuit_power_limit,
         "quietHours": quiet_hours,
         "weights": {
@@ -141,6 +161,7 @@ def _optimizer_payload(
                 "earliestStart": a.earliestStart,
                 "latestFinish": a.latestFinish,
                 "isNoisy": a.isNoisy,
+                "requiresPresence": a.requiresPresence,
                 "satisfactionByTime": a.satisfactionByTime,
             }
             for a in appliances
@@ -164,6 +185,7 @@ def generate_three_options(
     circuit_power_limit: float,
     quiet_hours: list[int],
     recommendation_date: date,
+    availability: list[bool] | None = None,
 ) -> dict[str, list[RecommendationOption]]:
     """
     Build three options from `optimization.MultiSolutionEngine`.
@@ -174,6 +196,9 @@ def generate_three_options(
     """
     if len(prices) != 48 or len(carbon) != 48:
         raise ValueError("prices and carbon must have length 48")
+    effective_availability = availability or [True] * 48
+    if len(effective_availability) != 48:
+        raise ValueError("availability must have length 48")
     if not appliances:
         return {}
     order: tuple[RecommendationLabel, ...] = (
@@ -189,6 +214,7 @@ def generate_three_options(
             weights,
             circuit_power_limit,
             quiet_hours,
+            effective_availability,
         ),
         top_k=3,
     )
@@ -202,6 +228,7 @@ def generate_three_options(
                 weights,
                 max(circuit_power_limit, 1e6),
                 [],
+                effective_availability,
             ),
             top_k=3,
         )
@@ -227,9 +254,9 @@ def generate_three_options(
                 base_why = "Best available given your schedule."
             c_usd = _run_usd(a, start_slot, prices)
             g_g = _run_co2_grams(a, start_slot, carbon)
-            w_usd = _worst_baseline_usd(a, prices)
-            w_g = _worst_baseline_co2(a, carbon)
-            sc = score_slot(start_slot, a, prices, carbon, weights)
+            w_usd = _worst_baseline_usd(a, prices, effective_availability)
+            w_g = _worst_baseline_co2(a, carbon, effective_availability)
+            sc = score_slot(start_slot, a, prices, carbon, weights, effective_availability)
             st, en = _slot_datetimes(recommendation_date, start_slot, a.duration)
             slot = TimelineSlot(
                 start=st,

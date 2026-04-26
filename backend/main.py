@@ -3,6 +3,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from backend.app.routers import (
+    availability_actions,
     calendar_sync,
     chat,
     external_data,
@@ -23,6 +24,7 @@ app.include_router(recommendations.router, prefix="/api", tags=["recommendations
 app.include_router(feedback.router, prefix="/api", tags=["feedback"])
 app.include_router(chat.router, prefix="/api", tags=["chat"])
 app.include_router(calendar_sync.router, prefix="/api", tags=["calendar"])
+app.include_router(availability_actions.router, prefix="/api", tags=["availability"])
 app.include_router(external_data.router, prefix="/api", tags=["external_data"])
 
 

@@ -5,7 +5,10 @@ from __future__ import annotations
 import asyncio
 import sys
 
-from google import genai
+try:
+    from google import genai
+except ImportError:  # pragma: no cover - dependency may be absent in local dev
+    genai = None
 
 from backend.app.config import get_settings
 
@@ -53,6 +56,12 @@ async def generate_gemma_reply(
     if not settings.google_ai_api_key:
         print(  # noqa: T201 — demo backend, no logging infra
             "generate_gemma_reply error: GOOGLE_AI_API_KEY is not configured",
+            file=sys.stderr,
+        )
+        return _FALLBACK_REPLY
+    if genai is None:
+        print(  # noqa: T201 — demo backend, no logging infra
+            "generate_gemma_reply error: google-genai is not installed",
             file=sys.stderr,
         )
         return _FALLBACK_REPLY

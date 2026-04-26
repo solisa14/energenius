@@ -3,7 +3,7 @@ from __future__ import annotations
 from datetime import date, datetime
 from typing import Any, Literal, TypeAlias
 
-from pydantic import BaseModel, field_validator, model_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 
 ApplianceName = Literal["dishwasher", "washing_machine", "dryer", "ev_charger", "water_heater_boost"]
 
@@ -20,6 +20,7 @@ class ApplianceConfig(BaseModel):
     earliestStart: int
     latestFinish: int
     isNoisy: bool
+    requiresPresence: bool = False
     satisfactionByTime: dict[str, float]
 
 
@@ -96,6 +97,7 @@ class ChatResponse(BaseModel):
     reply: str
     thread_id: str
     sources: list[dict[str, Any]] | None = None
+    assistant_action: AvailabilityAssistantAction | None = None
 
 
 class ExternalData(BaseModel):
@@ -128,3 +130,52 @@ class CalendarSyncRequest(BaseModel):
     """Body for POST /api/calendar-sync. `provider_token` is the Google OAuth access token from the Supabase session; not stored server-side."""
 
     provider_token: str | None = None
+    timezone: str | None = None
+
+
+AvailabilityAssistantSource = Literal["calendar_sync", "chat_edit"]
+AvailabilityAssistantStatus = Literal["pending", "applied", "skipped", "cancelled"]
+AvailabilityResolution = Literal["home", "away", "skip"]
+
+
+class AvailabilityAssistantAction(BaseModel):
+    status: AvailabilityAssistantStatus
+    action_id: str | None = None
+    affected_dates: list[date] = Field(default_factory=list)
+    refresh_recommendations: bool = False
+    summary: str
+
+
+class AvailabilityClarification(BaseModel):
+    action_id: str
+    source: AvailabilityAssistantSource
+    date: date
+    start_slot: int
+    end_slot: int
+    question_text: str
+    set_home: bool | None = None
+
+
+class CalendarSyncResponse(BaseModel):
+    days: list[DayAvailability]
+    clarifications: list[AvailabilityClarification]
+    summary: str
+
+
+class AvailabilityActionReplyRequest(BaseModel):
+    resolution: AvailabilityResolution | None = None
+    message: str | None = None
+
+    @model_validator(mode="after")
+    def require_resolution_or_message(self) -> AvailabilityActionReplyRequest:
+        if not self.resolution and not (self.message and self.message.strip()):
+            raise ValueError("resolution or message is required")
+        return self
+
+
+class AvailabilityActionReplyResponse(BaseModel):
+    ok: bool
+    reply: str
+    action: AvailabilityAssistantAction
+    clarification: AvailabilityClarification | None = None
+    days: list[DayAvailability] | None = None
