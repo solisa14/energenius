@@ -175,7 +175,9 @@ function OptionCard({
         isFadedSibling && "opacity-50",
       )}
     >
-      <OptionBadge label={option.label} />
+      <div className="flex justify-center">
+        <OptionBadge label={option.label} />
+      </div>
 
       <div className="flex flex-col items-center mt-1">
         <div className="text-h2 text-foreground tabular-nums">

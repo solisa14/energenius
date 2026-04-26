@@ -73,7 +73,7 @@ function PanelHeader({
               compact && "truncate",
             )}
           >
-            {compact ? "Online" : "Online · remembers your prefs"}
+            Online
           </span>
         </div>
       </div>
@@ -264,7 +264,7 @@ function ChatBody({
         </div>
         {!sidebarLayout && (
           <p className="mt-2 text-caption text-muted-foreground">
-            WattBot can explain your recommendations, remember your scheduling preferences, and search the web for energy tips.
+            WattBot is an AI and may produce inaccurate results.
           </p>
         )}
         {error && (

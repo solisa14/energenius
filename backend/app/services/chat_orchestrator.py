@@ -78,6 +78,26 @@ def _report_backboard_error(operation: str, user_id: str, exc: Exception) -> Non
     )
 
 
+def _spawn_background_memory_store(
+    user_id: str,
+    user_message: str,
+    assistant_reply: str,
+) -> None:
+    task = asyncio.create_task(
+        store_assistant_memory(user_id, user_message, assistant_reply)
+    )
+
+    def _on_done(done_task: asyncio.Task[None]) -> None:
+        try:
+            done_task.result()
+        except (httpx.HTTPError, ValueError) as exc:
+            _report_backboard_error("store assistant memory", user_id, exc)
+        except Exception as exc:  # noqa: BLE001 — keep failures non-fatal
+            _report_backboard_error("store assistant memory", user_id, exc)
+
+    task.add_done_callback(_on_done)
+
+
 async def hybrid_chat(
     user_id: str,
     message: str,
@@ -105,10 +125,7 @@ async def hybrid_chat(
     )
     if assistant_outcome is not None:
         if tid != "fallback":
-            try:
-                await store_assistant_memory(user_id, message, assistant_outcome.reply)
-            except (httpx.HTTPError, ValueError) as exc:
-                _report_backboard_error("store assistant memory", user_id, exc)
+            _spawn_background_memory_store(user_id, message, assistant_outcome.reply)
         return ChatResponse(
             reply=assistant_outcome.reply,
             thread_id=tid,
@@ -153,10 +170,7 @@ async def hybrid_chat(
     )
 
     if tid != "fallback" and not is_fallback_reply(reply):
-        try:
-            await store_assistant_memory(user_id, message, reply)
-        except (httpx.HTTPError, ValueError) as exc:
-            _report_backboard_error("store assistant memory", user_id, exc)
+        _spawn_background_memory_store(user_id, message, reply)
 
     return ChatResponse(
         reply=reply,

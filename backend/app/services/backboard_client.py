@@ -11,6 +11,8 @@ import httpx
 
 from backend.app.config import get_settings
 
+_BACKBOARD_TIMEOUT_SECONDS = 8.0
+
 
 @dataclass(frozen=True)
 class BackboardMemory:
@@ -135,7 +137,7 @@ async def ensure_thread(thread_id: str | None = None) -> str:
     """Return an existing thread id or create a Backboard thread."""
     if thread_id:
         return thread_id
-    async with httpx.AsyncClient(timeout=20.0) as client:
+    async with httpx.AsyncClient(timeout=_BACKBOARD_TIMEOUT_SECONDS) as client:
         response = await client.post(
             f"{_base_url()}/assistants/{_assistant_id()}/threads",
             headers=_headers(),
@@ -155,7 +157,7 @@ async def search_memories(
     limit: int = 5,
 ) -> list[BackboardMemory]:
     """Search Backboard memories, scoped by a user marker to avoid cross-user leaks."""
-    async with httpx.AsyncClient(timeout=20.0) as client:
+    async with httpx.AsyncClient(timeout=_BACKBOARD_TIMEOUT_SECONDS) as client:
         response = await client.post(
             f"{_base_url()}/assistants/{_assistant_id()}/memories/search",
             headers=_headers(),
@@ -178,7 +180,7 @@ async def search_memories(
 
 async def list_memories(user_id: str, page_size: int = 25) -> list[BackboardMemory]:
     """List Backboard memories and apply local user scoping."""
-    async with httpx.AsyncClient(timeout=20.0) as client:
+    async with httpx.AsyncClient(timeout=_BACKBOARD_TIMEOUT_SECONDS) as client:
         response = await client.get(
             f"{_base_url()}/assistants/{_assistant_id()}/memories",
             headers=_headers(),
@@ -210,7 +212,7 @@ async def add_memory(
             **(metadata or {}),
         },
     }
-    async with httpx.AsyncClient(timeout=20.0) as client:
+    async with httpx.AsyncClient(timeout=_BACKBOARD_TIMEOUT_SECONDS) as client:
         response = await client.post(
             f"{_base_url()}/assistants/{_assistant_id()}/memories",
             headers=_headers(),
@@ -233,7 +235,7 @@ async def store_user_message(
     `send_to_llm=false` keeps conversation persistence and memory hooks available
     while avoiding the Backboard-hosted LLM path that is blocked by credits.
     """
-    async with httpx.AsyncClient(timeout=20.0) as client:
+    async with httpx.AsyncClient(timeout=_BACKBOARD_TIMEOUT_SECONDS) as client:
         response = await client.post(
             f"{_base_url()}/threads/{thread_id}/messages",
             headers=_headers(),

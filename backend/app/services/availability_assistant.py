@@ -72,6 +72,29 @@ _TIME_RANGE_RE = re.compile(
 )
 
 
+def _looks_schedule_related(message: str) -> bool:
+    lowered = message.lower()
+    schedule_tokens = (
+        "home",
+        "away",
+        "not home",
+        "wfh",
+        "work from home",
+        "out of town",
+        "today",
+        "tomorrow",
+        "availability",
+        "schedule",
+        "mark me",
+        "calendar",
+        "am",
+        "pm",
+    )
+    return any(token in lowered for token in schedule_tokens) or bool(
+        _TIME_RANGE_RE.search(message)
+    )
+
+
 @dataclass(frozen=True)
 class ChatDecision:
     kind: Literal["apply_availability_change", "ask_clarification", "not_schedule_related"]
@@ -472,6 +495,8 @@ def _heuristic_chat_decision(message: str, timezone_name: str | None) -> ChatDec
 
 async def _chat_decision(message: str, timezone_name: str | None) -> ChatDecision:
     heuristic = _heuristic_chat_decision(message, timezone_name)
+    if not _looks_schedule_related(message):
+        return heuristic
     system_prompt = (
         "You convert user messages into strict availability actions for a home schedule app. "
         "Return JSON only. Allowed kinds: apply_availability_change, ask_clarification, "
