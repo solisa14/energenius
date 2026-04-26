@@ -45,14 +45,37 @@ def _satisfaction_map(raw: object) -> dict[str, float]:
     return {str(i): 0.7 for i in range(48)}
 
 
+def _appliance_id(row: dict[str, Any]) -> str:
+    raw_id = str(row.get("id", ""))
+    name = str(row.get("name") or raw_id)
+    normalized = name.strip().lower().replace("-", "_").replace(" ", "_")
+    aliases = {
+        "dishwasher": "dishwasher",
+        "washer": "washing_machine",
+        "washing_machine": "washing_machine",
+        "dryer": "dryer",
+        "ev": "ev_charger",
+        "ev_charger": "ev_charger",
+        "water_heater": "water_heater_boost",
+        "water_heater_boost": "water_heater_boost",
+    }
+    return aliases.get(normalized, raw_id)
+
+
 def _row_to_config(row: dict[str, Any]) -> ApplianceConfig:
+    duration = row.get("duration")
+    if duration is None:
+        duration_hours = float(row.get("duration_hours", 2.0))
+        duration = max(1, round(duration_hours * 2))
+    earliest_start = int(row.get("earliest_start", 0))
+    latest_finish = int(row.get("latest_finish", 48))
     return ApplianceConfig(
-        id=str(row["id"]),
+        id=_appliance_id(row),
         name=str(row.get("name", "")),
-        duration=int(row["duration"]),
+        duration=int(duration),
         powerKw=float(row["power_kw"]),
-        earliestStart=int(row["earliest_start"]),
-        latestFinish=int(row["latest_finish"]),
+        earliestStart=earliest_start,
+        latestFinish=latest_finish,
         isNoisy=bool(row.get("is_noisy", False)),
         satisfactionByTime=_satisfaction_map(row.get("satisfaction_by_time")),
     )
@@ -127,8 +150,10 @@ def get_recommendations(
         raise HTTPException(status_code=404, detail="Profile not found")
     profile: dict[str, Any] = prof_res.data
     c_w = float(profile.get("cost_weight", 0.4))
-    e_w = float(profile.get("emissions_weight", 0.2))
-    s_w = float(profile.get("satisfaction_weight", 0.4))
+    e_w = float(profile.get("emissions_weight", profile.get("carbon_weight", 0.2)))
+    s_w = float(
+        profile.get("satisfaction_weight", profile.get("comfort_weight", 0.4))
+    )
     weights = _normalize_weights(c_w, e_w, s_w)
     t_min = int(profile.get("t_min_f", 68))
     t_max = int(profile.get("t_max_f", 76))
