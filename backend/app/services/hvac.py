@@ -1,4 +1,5 @@
-# Deliberately simple threshold HVAC: real build would use thermal mass, occupancy, etc.
+# Deliberately simple threshold model for demo scheduling. A real implementation would
+# couple to indoor thermal mass, occupancy, and a proper comfort/thermal model.
 from __future__ import annotations
 
 from datetime import date, datetime, time, timedelta
