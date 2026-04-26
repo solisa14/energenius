@@ -239,14 +239,18 @@ def _get_action(user_id: str, action_id: str) -> dict[str, Any] | None:
 
 
 def _pending_thread_action(user_id: str, thread_id: str | None) -> dict[str, Any] | None:
-    response = (
-        get_supabase()
-        .table("availability_assistant_actions")
-        .select("*")
-        .eq("user_id", user_id)
-        .eq("status", "pending")
-        .execute()
-    )
+    try:
+        response = (
+            get_supabase()
+            .table("availability_assistant_actions")
+            .select("*")
+            .eq("user_id", user_id)
+            .eq("status", "pending")
+            .execute()
+        )
+    except Exception as exc:  # noqa: BLE001 — keep chat path resilient
+        print(f"availability assistant pending-action query failed: {exc!s}", file=sys.stderr)  # noqa: T201
+        return None
     rows = [dict(row) for row in list(response.data or [])]
     if thread_id:
         rows = [row for row in rows if row.get("thread_id") == thread_id]

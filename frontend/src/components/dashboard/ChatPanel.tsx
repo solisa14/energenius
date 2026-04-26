@@ -107,11 +107,7 @@ function MessageBubble({ msg }: { msg: Message }) {
       >
         {msg.pending ? <PendingDots /> : <span className="whitespace-pre-wrap">{msg.content}</span>}
       </div>
-      {!isUser && msg.sources && msg.sources.length > 0 && (
-        <div className="mt-1 text-caption text-muted-foreground">
-          {msg.sources.filter((s) => s.trim()).join(" · ")}
-        </div>
-      )}
+      {/* Internal retrieval sources are hidden from end users. */}
     </div>
   );
 }

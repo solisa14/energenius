@@ -135,7 +135,7 @@ def _truncate(value: str, limit: int = 700) -> str:
 
 async def ensure_thread(thread_id: str | None = None) -> str:
     """Return an existing thread id or create a Backboard thread."""
-    if thread_id:
+    if thread_id and thread_id.strip() and thread_id != "demo-thread":
         return thread_id
     async with httpx.AsyncClient(timeout=_BACKBOARD_TIMEOUT_SECONDS) as client:
         response = await client.post(
