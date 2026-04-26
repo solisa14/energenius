@@ -7,6 +7,8 @@ from pydantic import BaseModel, field_validator, model_validator
 
 ApplianceName = Literal["dishwasher", "washing_machine", "dryer", "ev_charger", "water_heater_boost"]
 
+RecommendationLabel = Literal["best", "balanced", "convenient"]
+
 GridMixSnapshot: TypeAlias = dict[str, float]
 
 
@@ -31,7 +33,7 @@ class TimelineSlot(BaseModel):
 
 
 class RecommendationOption(BaseModel):
-    label: Literal["best", "balanced", "convenient"]
+    label: RecommendationLabel
     slot: TimelineSlot
     savings_vs_baseline_usd: float
     co2_reduction_grams: float
@@ -78,6 +80,11 @@ class UserWeights(BaseModel):
         if abs(total - 1.0) > 1e-3:
             raise ValueError("cost + emissions + satisfaction must sum to 1.0 (within 1e-3)")
         return self
+
+
+class FeedbackResponse(BaseModel):
+    ok: bool
+    updated_weights: UserWeights
 
 
 class ChatRequest(BaseModel):
