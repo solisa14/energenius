@@ -286,6 +286,23 @@ function ChatBody({
   return inner;
 }
 
+/** Full-width chat for the /chat route; reuses the same state and API as the sidebar. */
+export function WattBotPageCard() {
+  return (
+    <Card className="flex h-[min(70vh,720px)] min-h-[420px] flex-col overflow-hidden rounded-2xl p-0 shadow-level-1">
+      <PanelHeader
+        compact={false}
+        collapsed={false}
+        onToggleCollapse={() => undefined}
+        showCollapse={false}
+      />
+      <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
+        <ChatBody fillHeight />
+      </div>
+    </Card>
+  );
+}
+
 /** FAB + full-screen sheet; mount from AppShell on &lt; lg so it appears on every page. */
 export function WattBotMobile() {
   const isMobile = useIsMobile();

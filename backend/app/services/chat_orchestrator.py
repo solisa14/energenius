@@ -12,6 +12,7 @@ from backend.app.models.schemas import ChatResponse
 from backend.app.services.availability_assistant import handle_chat_message
 from backend.app.services.backboard_client import (
     BackboardMemory,
+    BackboardMessageContext,
     ensure_thread,
     search_memories,
     store_assistant_memory,
@@ -115,18 +116,30 @@ async def hybrid_chat(
             assistant_action=assistant_outcome.action,
         )
 
-    if tid != "fallback":
+    async def _store_user_turn() -> BackboardMessageContext | None:
+        if tid == "fallback":
+            return None
         try:
-            context = await store_user_message(tid, user_id, message)
-            memories.extend(context.retrieved_memories)
-            retrieved_files.extend(context.retrieved_files)
+            return await store_user_message(tid, user_id, message)
         except (httpx.HTTPError, ValueError) as exc:
             _report_backboard_error("store user message", user_id, exc)
+            return None
 
-    try:
-        memories.extend(await search_memories(user_id, message))
-    except (httpx.HTTPError, ValueError) as exc:
-        _report_backboard_error("memory search", user_id, exc)
+    async def _search_user_memories() -> list[BackboardMemory]:
+        try:
+            return await search_memories(user_id, message)
+        except (httpx.HTTPError, ValueError) as exc:
+            _report_backboard_error("memory search", user_id, exc)
+            return []
+
+    context, search_hits = await asyncio.gather(
+        _store_user_turn(),
+        _search_user_memories(),
+    )
+    if context is not None:
+        memories.extend(context.retrieved_memories)
+        retrieved_files.extend(context.retrieved_files)
+    memories.extend(search_hits)
 
     memories = _dedupe_memories(memories)
     rag_context = [

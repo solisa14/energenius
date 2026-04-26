@@ -189,11 +189,23 @@ function ApplianceBlock({
                   type="button"
                   onClick={onNavigate}
                   className={cn(
-                    "flex h-10 w-full min-w-0 items-center justify-center overflow-hidden rounded-md border border-border bg-white px-1 shadow-sm",
-                    "dark:border-neutral-500",
+                    "group flex h-10 w-full min-w-0 items-center justify-center gap-1.5 overflow-hidden rounded-md border border-primary/25 bg-primary/10 px-2 shadow-sm",
+                    "text-left transition-colors hover:bg-primary/15",
                     "focus:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1",
                   )}
-                />
+                >
+                  <span className="material-symbols-outlined shrink-0 text-[18px] text-primary">
+                    {APPLIANCE_ICON[appliance]}
+                  </span>
+                  <span className="min-w-0 flex-1 select-none text-caption leading-tight text-foreground sm:text-body-sm">
+                    <span className="block truncate font-medium">
+                      {formatTimeRange(slot.start, slot.end)}
+                    </span>
+                    <span className="mt-0.5 block truncate text-caption text-muted-foreground">
+                      {OPTION_TITLE[option.label]}
+                    </span>
+                  </span>
+                </button>
               </TooltipTrigger>
               <TooltipContent
                 side="top"
@@ -254,11 +266,23 @@ function HvacBlock({
             type="button"
             onClick={() => scrollToRecommendationCardset()}
             className={cn(
-              "flex h-10 w-full min-w-0 items-center justify-center overflow-hidden rounded-md border border-border bg-white px-1 shadow-sm",
-              "dark:border-neutral-500",
+              "group flex h-10 w-full min-w-0 items-center justify-center gap-1.5 overflow-hidden rounded-md border border-border bg-muted/80 px-2 shadow-sm",
+              "text-left transition-colors hover:bg-muted",
               "focus:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1",
             )}
-          />
+          >
+            <span className="material-symbols-outlined shrink-0 text-[18px] text-muted-foreground">
+              {APPLIANCE_ICON.hvac}
+            </span>
+            <span className="min-w-0 flex-1 select-none text-caption leading-tight text-foreground sm:text-body-sm">
+              <span className="block truncate font-medium">
+                {formatTimeRange(slot.start, slot.end)}
+              </span>
+              <span className="mt-0.5 block truncate text-caption text-muted-foreground">
+                {modeLabel}
+              </span>
+            </span>
+          </button>
         </TooltipTrigger>
         <TooltipContent className="w-max max-w-[min(90vw,400px)] rounded-lg border border-border bg-card p-3 shadow-[var(--shadow-2)]">
           <div className="text-h4 text-card-foreground whitespace-nowrap">HVAC</div>

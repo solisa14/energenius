@@ -12,7 +12,11 @@ import Login from "./pages/auth/Login";
 import Signup from "./pages/auth/Signup";
 import Onboarding from "./pages/Onboarding";
 import Dashboard from "./pages/Dashboard";
-import { PlaceholderPage } from "./pages/Placeholder";
+import Recommendations from "./pages/Recommendations";
+import Schedule from "./pages/Schedule";
+import Insights from "./pages/Insights";
+import ChatPage from "./pages/ChatPage";
+import SettingsPage from "./pages/SettingsPage";
 
 const queryClient = new QueryClient();
 
@@ -38,23 +42,23 @@ const App = () => (
               />
               <Route
                 path="/recommendations"
-                element={<ProtectedRoute><PlaceholderPage title="Recommendations" breadcrumb="Home / Recommendations" /></ProtectedRoute>}
+                element={<ProtectedRoute><Recommendations /></ProtectedRoute>}
               />
               <Route
                 path="/schedule"
-                element={<ProtectedRoute><PlaceholderPage title="Schedule" breadcrumb="Home / Schedule" /></ProtectedRoute>}
+                element={<ProtectedRoute><Schedule /></ProtectedRoute>}
               />
               <Route
                 path="/insights"
-                element={<ProtectedRoute><PlaceholderPage title="Insights" breadcrumb="Home / Insights" /></ProtectedRoute>}
+                element={<ProtectedRoute><Insights /></ProtectedRoute>}
               />
               <Route
                 path="/chat"
-                element={<ProtectedRoute><PlaceholderPage title="Chat" breadcrumb="Home / Chat" /></ProtectedRoute>}
+                element={<ProtectedRoute><ChatPage /></ProtectedRoute>}
               />
               <Route
                 path="/settings"
-                element={<ProtectedRoute><PlaceholderPage title="Settings" breadcrumb="Home / Settings" /></ProtectedRoute>}
+                element={<ProtectedRoute><SettingsPage /></ProtectedRoute>}
               />
               <Route path="*" element={<NotFound />} />
             </Routes>
