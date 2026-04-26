@@ -5,17 +5,17 @@ import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@/components/ui/popover";
 import {
   Dialog,
   DialogContent,
@@ -256,53 +256,47 @@ function LoadingCard({ embed }: { embed?: boolean }) {
 export function RecommendationCardSet({
   date,
   embed = false,
+  layout = "all",
 }: {
   date: string;
   embed?: boolean;
+  layout?: "single" | "all";
 }) {
   const qc = useQueryClient();
   const { data, isLoading, error, refetch } = useRecommendations(date);
   const { submitAsync, isLoading: feedbackPending } = useFeedback();
   const setStoreSelection = useApplianceSelectionsStore((s) => s.setSelection);
   const selectionsByDate = useApplianceSelectionsStore((s) => s.selectionsByDate);
-
-  const [activeAppliance, setActiveAppliance] = useState<Appliance | null>(null);
-
-  // Reschedule dialog state (single, shared by the popover)
-  const [rescheduleOpen, setRescheduleOpen] = useState(false);
-  const [popoverOpen, setPopoverOpen] = useState(false);
-
-  const appliances = useMemo(() => data?.appliances ?? [], [data]);
   const timelineFocusAppliance = useApplianceSelectionsStore(
     (s) => s.timelineFocusAppliance,
   );
   const timelineFocusNonce = useApplianceSelectionsStore(
     (s) => s.timelineFocusNonce,
   );
+  const [activeAppliance, setActiveAppliance] = useState<Appliance | null>(null);
 
+  // Reschedule dialog state (single, shared by the popover)
+  const [rescheduleTarget, setRescheduleTarget] = useState<{
+    appliance: Appliance;
+    defaultStart: string;
+  } | null>(null);
+  const [popoverOpenAppliance, setPopoverOpenAppliance] = useState<Appliance | null>(null);
+
+  const appliances = useMemo(() => data?.appliances ?? [], [data]);
   useEffect(() => {
-    if (!timelineFocusAppliance || appliances.length === 0) return;
+    if (layout !== "single" || !timelineFocusAppliance || appliances.length === 0) return;
     const exists = appliances.some((a) => a.appliance === timelineFocusAppliance);
     if (exists) {
       setActiveAppliance(timelineFocusAppliance);
     }
-  }, [timelineFocusAppliance, timelineFocusNonce, appliances]);
+  }, [layout, timelineFocusAppliance, timelineFocusNonce, appliances]);
 
-  const current: ApplianceRecommendation | undefined = useMemo(() => {
-    if (appliances.length === 0) return undefined;
-    const key = activeAppliance ?? appliances[0].appliance;
-    return appliances.find((a) => a.appliance === key) ?? appliances[0];
-  }, [appliances, activeAppliance]);
-
-  const selectedLabel: RecommendationLabel | null = current
-    ? (selectionsByDate[date]?.[current.appliance] ?? null)
-    : null;
-
-  const bestOption = current?.options.find((o) => o.label === "best") ?? current?.options[0];
-
-  const handleSelect = async (option: RecommendationOption) => {
-    if (!current || !data) return;
-    setStoreSelection(date, current.appliance, option.label);
+  const handleSelect = async (
+    appliance: ApplianceRecommendation,
+    option: RecommendationOption,
+  ) => {
+    if (!data) return;
+    setStoreSelection(date, appliance.appliance, option.label);
 
     // Optimistic stat bump
     qc.setQueryData<DailyRecommendation>(qk.recommendations(date), (prev) => {
@@ -323,7 +317,7 @@ export function RecommendationCardSet({
 
     try {
       await submitAsync({
-        appliance: current.appliance,
+        appliance: appliance.appliance,
         chosen_option: option.label,
         response: "yes",
         suggested_time: option.slot.start,
@@ -334,12 +328,14 @@ export function RecommendationCardSet({
     notifyFeedback();
   };
 
-  const handleDoesntWork = async () => {
-    if (!current || !bestOption) return;
-    setPopoverOpen(false);
+  const handleDoesntWork = async (
+    appliance: ApplianceRecommendation,
+    bestOption: RecommendationOption,
+  ) => {
+    setPopoverOpenAppliance(null);
     try {
       await submitAsync({
-        appliance: current.appliance,
+        appliance: appliance.appliance,
         chosen_option: "best",
         response: "no",
         suggested_time: bestOption.slot.start,
@@ -351,11 +347,11 @@ export function RecommendationCardSet({
   };
 
   const handleRescheduleConfirm = async (iso: string) => {
-    if (!current || !bestOption) return;
-    setRescheduleOpen(false);
+    if (!rescheduleTarget) return;
+    setRescheduleTarget(null);
     try {
       await submitAsync({
-        appliance: current.appliance,
+        appliance: rescheduleTarget.appliance,
         chosen_option: "best",
         response: "different_time",
         suggested_time: iso,
@@ -396,7 +392,7 @@ export function RecommendationCardSet({
     return <Card>{errorInner}</Card>;
   }
 
-  if (!current) {
+  if (appliances.length === 0) {
     const emptyInner = (
       <p className="text-body text-muted-foreground text-center py-8">
         No appliances configured yet.
@@ -408,97 +404,209 @@ export function RecommendationCardSet({
 
   // ---- Render ----
 
-  const triggerSubtitle = `${formatApplianceDuration(current.duration)} hr · ${current.powerKw} kW`;
-
   const body = (
     <>
       <h3 className="text-h3 text-foreground">Recommended Times</h3>
-      <Select
-        value={current.appliance}
-        onValueChange={(v) => setActiveAppliance(v as Appliance)}
-      >
-        <SelectTrigger className="mt-4 h-12 w-full sm:w-[360px]">
-          <SelectValue>
-            <span className="flex items-center gap-2">
-              <span className="material-symbols-outlined text-[20px] text-foreground">
-                {APPLIANCE_ICON[current.appliance]}
-              </span>
-              <span className="text-body font-medium text-foreground">
-                {APPLIANCE_LABEL[current.appliance]}
-              </span>
-              <span className="text-body-sm text-muted-foreground">
-                · {triggerSubtitle}
-              </span>
-            </span>
-          </SelectValue>
-        </SelectTrigger>
-        <SelectContent>
-          {appliances.map((a) => (
-            <SelectItem key={a.appliance} value={a.appliance}>
-              <span className="flex items-center gap-2">
-                <span className="material-symbols-outlined text-[20px]">
-                  {APPLIANCE_ICON[a.appliance]}
+      {layout === "single" && (() => {
+        const current =
+          appliances.find((a) => a.appliance === (activeAppliance ?? appliances[0].appliance)) ??
+          appliances[0];
+        const selectedLabel: RecommendationLabel | null =
+          selectionsByDate[date]?.[current.appliance] ?? null;
+        const bestOption =
+          current.options.find((option) => option.label === "best") ?? current.options[0];
+        const triggerSubtitle = `${formatApplianceDuration(current.duration)} hr · ${current.powerKw} kW`;
+
+        return (
+          <>
+            <Select
+              value={current.appliance}
+              onValueChange={(v) => setActiveAppliance(v as Appliance)}
+            >
+              <SelectTrigger className="mt-4 h-12 w-full sm:w-[360px]">
+                <SelectValue>
+                  <span className="flex items-center gap-2">
+                    <span className="material-symbols-outlined text-[20px] text-foreground">
+                      {APPLIANCE_ICON[current.appliance]}
+                    </span>
+                    <span className="text-body font-medium text-foreground">
+                      {APPLIANCE_LABEL[current.appliance]}
+                    </span>
+                    <span className="text-body-sm text-muted-foreground">
+                      · {triggerSubtitle}
+                    </span>
+                  </span>
+                </SelectValue>
+              </SelectTrigger>
+              <SelectContent>
+                {appliances.map((a) => (
+                  <SelectItem key={a.appliance} value={a.appliance}>
+                    <span className="flex items-center gap-2">
+                      <span className="material-symbols-outlined text-[20px]">
+                        {APPLIANCE_ICON[a.appliance]}
+                      </span>
+                      <span className="text-body font-medium">
+                        {APPLIANCE_LABEL[a.appliance]}
+                      </span>
+                      <span className="text-body-sm text-muted-foreground">
+                        · {formatApplianceDuration(a.duration)} hr · {a.powerKw} kW
+                      </span>
+                    </span>
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+
+            <div className="grid gap-4 grid-cols-1 min-[900px]:grid-cols-3 mt-4">
+              {current.options.map((opt) => {
+                const isSelected = selectedLabel === opt.label;
+                const isFadedSibling = !!selectedLabel && !isSelected;
+                return (
+                  <OptionCard
+                    key={`${current.appliance}-${opt.label}`}
+                    option={opt}
+                    isSelected={isSelected}
+                    isFadedSibling={isFadedSibling}
+                    onSelect={(selectedOption) => handleSelect(current, selectedOption)}
+                  />
+                );
+              })}
+            </div>
+
+            {bestOption && (
+              <div className="mt-4 flex items-center justify-center">
+                <Popover
+                  open={popoverOpenAppliance === current.appliance}
+                  onOpenChange={(open) =>
+                    setPopoverOpenAppliance(open ? current.appliance : null)
+                  }
+                >
+                  <PopoverTrigger asChild>
+                    <button
+                      type="button"
+                      disabled={feedbackPending}
+                      className="text-body-sm text-muted-foreground hover:text-foreground underline-offset-4 hover:underline focus:outline-none focus-visible:ring-2 focus-visible:ring-accent-secondary rounded-sm px-2 py-1"
+                    >
+                      Not the right time?
+                    </button>
+                  </PopoverTrigger>
+                  <PopoverContent align="center" className="w-64 p-2">
+                    <button
+                      type="button"
+                      onClick={() => handleDoesntWork(current, bestOption)}
+                      className="w-full text-left text-body-sm px-3 py-2 rounded-sm hover:bg-muted focus:outline-none focus-visible:bg-muted"
+                    >
+                      This doesn't work
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setPopoverOpenAppliance(null);
+                        setRescheduleTarget({
+                          appliance: current.appliance,
+                          defaultStart: bestOption.slot.start,
+                        });
+                      }}
+                      className="w-full text-left text-body-sm px-3 py-2 rounded-sm hover:bg-muted focus:outline-none focus-visible:bg-muted"
+                    >
+                      Suggest a different time
+                    </button>
+                  </PopoverContent>
+                </Popover>
+              </div>
+            )}
+          </>
+        );
+      })()}
+      {layout === "all" && (
+      <div className="mt-4 space-y-8">
+        {appliances.map((appliance) => {
+          const selectedLabel: RecommendationLabel | null =
+            selectionsByDate[date]?.[appliance.appliance] ?? null;
+          const bestOption =
+            appliance.options.find((option) => option.label === "best") ??
+            appliance.options[0];
+
+          return (
+            <section
+              key={appliance.appliance}
+              className="rounded-lg border border-border bg-card p-4"
+            >
+              <div className="flex items-center gap-2">
+                <span className="material-symbols-outlined text-[20px] text-foreground">
+                  {APPLIANCE_ICON[appliance.appliance]}
                 </span>
-                <span className="text-body font-medium">
-                  {APPLIANCE_LABEL[a.appliance]}
+                <span className="text-body font-medium text-foreground">
+                  {APPLIANCE_LABEL[appliance.appliance]}
                 </span>
                 <span className="text-body-sm text-muted-foreground">
-                  · {formatApplianceDuration(a.duration)} hr · {a.powerKw} kW
+                  · {formatApplianceDuration(appliance.duration)} hr · {appliance.powerKw} kW
                 </span>
-              </span>
-            </SelectItem>
-          ))}
-        </SelectContent>
-      </Select>
+              </div>
 
-      <div className="grid gap-4 grid-cols-1 min-[900px]:grid-cols-3 mt-4">
-        {current.options.map((opt) => {
-          const isSelected = selectedLabel === opt.label;
-          const isFadedSibling = !!selectedLabel && !isSelected;
-          return (
-            <OptionCard
-              key={opt.label}
-              option={opt}
-              isSelected={isSelected}
-              isFadedSibling={isFadedSibling}
-              onSelect={handleSelect}
-            />
+              <div className="grid gap-4 grid-cols-1 min-[900px]:grid-cols-3 mt-4">
+                {appliance.options.map((opt) => {
+                  const isSelected = selectedLabel === opt.label;
+                  const isFadedSibling = !!selectedLabel && !isSelected;
+                  return (
+                    <OptionCard
+                      key={`${appliance.appliance}-${opt.label}`}
+                      option={opt}
+                      isSelected={isSelected}
+                      isFadedSibling={isFadedSibling}
+                      onSelect={(selectedOption) => handleSelect(appliance, selectedOption)}
+                    />
+                  );
+                })}
+              </div>
+
+              {bestOption && (
+                <div className="mt-4 flex items-center justify-center">
+                  <Popover
+                    open={popoverOpenAppliance === appliance.appliance}
+                    onOpenChange={(open) =>
+                      setPopoverOpenAppliance(open ? appliance.appliance : null)
+                    }
+                  >
+                    <PopoverTrigger asChild>
+                      <button
+                        type="button"
+                        disabled={feedbackPending}
+                        className="text-body-sm text-muted-foreground hover:text-foreground underline-offset-4 hover:underline focus:outline-none focus-visible:ring-2 focus-visible:ring-accent-secondary rounded-sm px-2 py-1"
+                      >
+                        Not the right time?
+                      </button>
+                    </PopoverTrigger>
+                    <PopoverContent align="center" className="w-64 p-2">
+                      <button
+                        type="button"
+                        onClick={() => handleDoesntWork(appliance, bestOption)}
+                        className="w-full text-left text-body-sm px-3 py-2 rounded-sm hover:bg-muted focus:outline-none focus-visible:bg-muted"
+                      >
+                        This doesn't work
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setPopoverOpenAppliance(null);
+                          setRescheduleTarget({
+                            appliance: appliance.appliance,
+                            defaultStart: bestOption.slot.start,
+                          });
+                        }}
+                        className="w-full text-left text-body-sm px-3 py-2 rounded-sm hover:bg-muted focus:outline-none focus-visible:bg-muted"
+                      >
+                        Suggest a different time
+                      </button>
+                    </PopoverContent>
+                  </Popover>
+                </div>
+              )}
+            </section>
           );
         })}
       </div>
-
-      <div className="mt-4 flex items-center justify-center">
-        <Popover open={popoverOpen} onOpenChange={setPopoverOpen}>
-          <PopoverTrigger asChild>
-            <button
-              type="button"
-              disabled={feedbackPending}
-              className="text-body-sm text-muted-foreground hover:text-foreground underline-offset-4 hover:underline focus:outline-none focus-visible:ring-2 focus-visible:ring-accent-secondary rounded-sm px-2 py-1"
-            >
-              Not the right time?
-            </button>
-          </PopoverTrigger>
-          <PopoverContent align="center" className="w-64 p-2">
-            <button
-              type="button"
-              onClick={handleDoesntWork}
-              className="w-full text-left text-body-sm px-3 py-2 rounded-sm hover:bg-muted focus:outline-none focus-visible:bg-muted"
-            >
-              This doesn't work
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                setPopoverOpen(false);
-                setRescheduleOpen(true);
-              }}
-              className="w-full text-left text-body-sm px-3 py-2 rounded-sm hover:bg-muted focus:outline-none focus-visible:bg-muted"
-            >
-              Suggest a different time
-            </button>
-          </PopoverContent>
-        </Popover>
-      </div>
+      )}
     </>
   );
 
@@ -510,11 +618,13 @@ export function RecommendationCardSet({
         <Card id="recommendation-cardset">{body}</Card>
       )}
 
-      {bestOption && (
+      {rescheduleTarget && (
         <RescheduleDialog
-          open={rescheduleOpen}
-          onOpenChange={setRescheduleOpen}
-          defaultStart={bestOption.slot.start}
+          open={!!rescheduleTarget}
+          onOpenChange={(open) => {
+            if (!open) setRescheduleTarget(null);
+          }}
+          defaultStart={rescheduleTarget.defaultStart}
           onConfirm={handleRescheduleConfirm}
         />
       )}

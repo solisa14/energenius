@@ -10,7 +10,7 @@ export function ScheduleRecommendationsCard() {
 
   return (
     <Card className="rounded-2xl p-6 shadow-level-1">
-      <RecommendationCardSet date={targetDateISO} embed />
+      <RecommendationCardSet date={targetDateISO} embed layout="single" />
       <div className="mt-6 border-t border-border pt-6">
         <DailyTimelinePanel
           targetDateISO={targetDateISO}
