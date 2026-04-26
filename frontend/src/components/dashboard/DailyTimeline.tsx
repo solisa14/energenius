@@ -622,6 +622,7 @@ export function DailyTimelinePanel({
                 style={{ minWidth: LABEL_COL_W + TIMELINE_MIN_W }}
               >
                 <NowLabelAboveRuler fraction={fraction ?? 0} show={showNow} />
+                <NowDashedLine fraction={fraction ?? 0} show={showNow} />
                 <HourRulerRow />
                 <div
                   ref={lanesRef}
@@ -647,7 +648,6 @@ export function DailyTimelinePanel({
                   onMouseLeave={() => setShowMouseGuide(false)}
                 >
                   <MouseGuideLine show={showMouseGuide} lineRef={mouseGuideRef} />
-                  <NowDashedLine fraction={fraction ?? 0} show={showNow} />
                   {sortedAppliances.map((rec) => {
                     const opt = pickOption(rec, dateSelections?.[rec.appliance]);
                     return (
