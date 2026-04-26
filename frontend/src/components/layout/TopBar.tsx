@@ -1,5 +1,4 @@
 import { Link, useNavigate } from "react-router-dom";
-import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -26,18 +25,9 @@ export function TopBar() {
 
   return (
     <header className="flex h-16 items-center justify-between gap-4 border-b border-border bg-surface px-6">
-      <div className="relative w-full max-w-[480px]">
-        <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-[20px] text-text-tertiary">
-          search
-        </span>
-        <Input
-          type="search"
-          placeholder="Search appliances, recommendations, or ask a question…"
-          className="pl-10 pr-3 h-10 text-body-sm placeholder:overflow-hidden placeholder:text-ellipsis"
-        />
-      </div>
+      <div className="flex-1" />
 
-      <div className="flex items-center gap-2">
+      <div className="flex items-center gap-4">
         <Button variant="ghost" size="icon" onClick={toggleTheme} aria-label="Toggle theme">
           <span className="material-symbols-outlined text-[20px]">
             {theme === "dark" ? "light_mode" : "dark_mode"}

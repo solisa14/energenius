@@ -12,6 +12,7 @@ import {
 } from "@/components/ui/sheet";
 import { useRecommendations } from "@/hooks/useRecommendations";
 import { synthesizeDailySeries, type DailyPoint } from "@/lib/charts/synthesizeHistory";
+import { formatPercentBadge, getDemoMonthComparison } from "@/lib/demo/monthComparison";
 import { cn } from "@/lib/utils";
 
 type BadgeTone = "yellow" | "green";
@@ -276,6 +277,7 @@ export function StatCardsRow() {
   const daysElapsedInMonth = now.getDate();
   const monthlySavings = totals.estimated_monthly_savings_usd;
   const monthlyCo2Kg = totals.co2_reduction_grams_monthly / 1000;
+  const demoMonthComparison = getDemoMonthComparison(monthlySavings, monthlyCo2Kg);
 
   const savingsSeries = synthesizeDailySeries(
     monthlySavings / daysInMonth,
@@ -293,7 +295,7 @@ export function StatCardsRow() {
       <StatCard
         label="Estimated Monthly Savings"
         metric={`$${monthlySavings.toFixed(2)}`}
-        badgeText="+18% vs last month"
+        badgeText={formatPercentBadge(demoMonthComparison.savingsPercentVsLastMonth)}
         badgeTone="green"
         series={savingsSeries}
         chartType="pie"
@@ -315,7 +317,7 @@ export function StatCardsRow() {
       <StatCard
         label="CO₂ Reduction This Month"
         metric={`${monthlyCo2Kg.toFixed(1)} kg`}
-        badgeText="+22% vs last month"
+        badgeText={formatPercentBadge(demoMonthComparison.co2PercentVsLastMonth)}
         badgeTone="yellow"
         series={co2Series}
         chartType="bar"
