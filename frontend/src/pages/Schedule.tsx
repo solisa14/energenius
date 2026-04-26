@@ -4,7 +4,7 @@ import { ScheduleRecommendationsCard } from "@/components/dashboard/ScheduleReco
 export default function Schedule() {
   return (
     <AppShell title="Schedule" breadcrumb="Home / Schedule">
-      <ScheduleRecommendationsCard />
+      <ScheduleRecommendationsCard timelineFirst />
     </AppShell>
   );
 }

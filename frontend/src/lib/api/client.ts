@@ -9,7 +9,7 @@ import type {
   FeedbackEvent,
   FeedbackResponse,
 } from "./types";
-import { mockDailyRecommendation, mockExternalData } from "./mocks";
+import { buildMockDailyRecommendation, mockExternalData } from "./mocks";
 
 // Set VITE_USE_MOCKS="true" only for UI work without a running API.
 const USE_MOCKS =
@@ -94,7 +94,7 @@ export async function getRecommendations(
   const target = date ?? new Date().toISOString().slice(0, 10);
   if (USE_MOCKS) {
     await new Promise((r) => setTimeout(r, 200));
-    return { ...mockDailyRecommendation, date: target };
+    return buildMockDailyRecommendation(target);
   }
   const headers = await getAuthHeaders();
   const res = await fetch(

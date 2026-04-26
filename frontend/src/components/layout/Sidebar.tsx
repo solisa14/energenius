@@ -3,8 +3,8 @@ import { WattBotSidebarPanel } from "@/components/dashboard/ChatPanel";
 
 const NAV_ITEMS = [
   { to: "/dashboard", label: "Dashboard", icon: "dashboard" },
-  { to: "/recommendations", label: "Recommendations", icon: "lightbulb" },
   { to: "/schedule", label: "Schedule", icon: "calendar_month" },
+  { to: "/recommendations", label: "Recommendations", icon: "lightbulb" },
   { to: "/insights", label: "Insights", icon: "insights" },
   { to: "/chat", label: "Chat", icon: "chat" },
   { to: "/settings", label: "Settings", icon: "settings" },

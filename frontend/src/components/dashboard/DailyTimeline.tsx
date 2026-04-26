@@ -534,12 +534,15 @@ export interface DailyTimelinePanelProps {
   targetDateISO: string;
   day: DayChoice;
   onDayChange: (next: DayChoice) => void;
+  /** When false, hide Today / Tomorrow (e.g. parent page already has the day toggle). */
+  showDayToggle?: boolean;
 }
 
 export function DailyTimelinePanel({
   targetDateISO,
   day,
   onDayChange,
+  showDayToggle = true,
 }: DailyTimelinePanelProps) {
   const targetDate = new Date(targetDateISO + "T00:00:00");
   const dayStart = startOfDay(targetDate);
@@ -580,30 +583,34 @@ export function DailyTimelinePanel({
     <>
       <div className="flex items-start justify-between gap-4 flex-wrap">
         <div className="flex items-baseline gap-3 flex-wrap">
-          <h3 className="text-h3 text-foreground">Today&apos;s Schedule</h3>
+          <h3 className="text-h3 text-foreground">
+            {day === "tomorrow" ? "Tomorrow&apos;s Schedule" : "Today&apos;s Schedule"}
+          </h3>
           <span className="text-body-sm text-muted-foreground">
             {readableDateFromISO(targetDateISO)}
           </span>
         </div>
-        <ToggleGroup
-          type="single"
-          value={day}
-          onValueChange={(v) => v && onDayChange(v as DayChoice)}
-          className="bg-muted rounded-full p-1"
-        >
-          <ToggleGroupItem
-            value="today"
-            className="rounded-full px-4 h-8 text-body-sm data-[state=on]:bg-accent-primary data-[state=on]:text-accent-primary-foreground"
+        {showDayToggle ? (
+          <ToggleGroup
+            type="single"
+            value={day}
+            onValueChange={(v) => v && onDayChange(v as DayChoice)}
+            className="bg-muted rounded-full p-1"
           >
-            Today
-          </ToggleGroupItem>
-          <ToggleGroupItem
-            value="tomorrow"
-            className="rounded-full px-4 h-8 text-body-sm data-[state=on]:bg-accent-primary data-[state=on]:text-accent-primary-foreground"
-          >
-            Tomorrow
-          </ToggleGroupItem>
-        </ToggleGroup>
+            <ToggleGroupItem
+              value="today"
+              className="rounded-full px-4 h-8 text-body-sm data-[state=on]:bg-accent-primary data-[state=on]:text-accent-primary-foreground"
+            >
+              Today
+            </ToggleGroupItem>
+            <ToggleGroupItem
+              value="tomorrow"
+              className="rounded-full px-4 h-8 text-body-sm data-[state=on]:bg-accent-primary data-[state=on]:text-accent-primary-foreground"
+            >
+              Tomorrow
+            </ToggleGroupItem>
+          </ToggleGroup>
+        ) : null}
       </div>
 
       <div className="mt-6">

@@ -1,6 +1,8 @@
 import { useState } from "react";
 import { AppShell } from "@/components/layout/AppShell";
 import { RecommendationCardSet } from "@/components/dashboard/RecommendationCardSet";
+import { DailyTimelinePanel } from "@/components/dashboard/DailyTimeline";
+import { Card } from "@/components/ui/card";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { isoDateForChoice, readableDateFromISO, type DayChoice } from "@/lib/timeline/grid";
 
@@ -36,6 +38,14 @@ export default function Recommendations() {
           </ToggleGroup>
         </div>
         <RecommendationCardSet date={targetDateISO} />
+        <Card className="rounded-2xl p-6 shadow-level-1">
+          <DailyTimelinePanel
+            targetDateISO={targetDateISO}
+            day={day}
+            onDayChange={setDay}
+            showDayToggle={false}
+          />
+        </Card>
       </div>
     </AppShell>
   );

@@ -4,20 +4,39 @@ import { DailyTimelinePanel } from "@/components/dashboard/DailyTimeline";
 import { RecommendationCardSet } from "@/components/dashboard/RecommendationCardSet";
 import { isoDateForChoice, type DayChoice } from "@/lib/timeline/grid";
 
-export function ScheduleRecommendationsCard() {
+interface ScheduleRecommendationsCardProps {
+  timelineFirst?: boolean;
+}
+
+export function ScheduleRecommendationsCard({
+  timelineFirst = false,
+}: ScheduleRecommendationsCardProps) {
   const [day, setDay] = useState<DayChoice>("today");
   const targetDateISO = isoDateForChoice(day);
+  const timeline = (
+    <DailyTimelinePanel
+      targetDateISO={targetDateISO}
+      day={day}
+      onDayChange={setDay}
+    />
+  );
+  const recommendations = (
+    <RecommendationCardSet date={targetDateISO} embed layout="single" />
+  );
 
   return (
     <Card className="rounded-2xl p-6 shadow-level-1">
-      <RecommendationCardSet date={targetDateISO} embed layout="single" />
-      <div className="mt-6 border-t border-border pt-6">
-        <DailyTimelinePanel
-          targetDateISO={targetDateISO}
-          day={day}
-          onDayChange={setDay}
-        />
-      </div>
+      {timelineFirst ? (
+        <>
+          {timeline}
+          <div className="mt-6 border-t border-border pt-6">{recommendations}</div>
+        </>
+      ) : (
+        <>
+          {recommendations}
+          <div className="mt-6 border-t border-border pt-6">{timeline}</div>
+        </>
+      )}
     </Card>
   );
 }

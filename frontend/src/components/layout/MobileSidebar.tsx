@@ -2,8 +2,8 @@ import { NavLink, useLocation } from "react-router-dom";
 
 const NAV_ITEMS = [
   { to: "/dashboard", icon: "dashboard", label: "Dashboard" },
-  { to: "/recommendations", icon: "lightbulb", label: "Recommendations" },
   { to: "/schedule", icon: "calendar_month", label: "Schedule" },
+  { to: "/recommendations", icon: "lightbulb", label: "Recommendations" },
   { to: "/insights", icon: "insights", label: "Insights" },
   { to: "/chat", icon: "chat", label: "Chat" },
   { to: "/settings", icon: "settings", label: "Settings" },

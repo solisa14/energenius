@@ -8,8 +8,9 @@ import type {
   RecommendationOption,
 } from "./types";
 
-function at(hour: number, minute = 0): string {
-  const d = new Date();
+/** Local wall time on a given YYYY-MM-DD; matches timeline day boundaries. */
+function atOnDate(isoDate: string, hour: number, minute = 0): string {
+  const d = new Date(`${isoDate}T00:00:00`);
   d.setHours(hour, minute, 0, 0);
   return d.toISOString();
 }
@@ -26,12 +27,13 @@ interface OptionSeed {
 }
 
 function makeOption(
+  dateISO: string,
   label: RecommendationOption["label"],
   seed: OptionSeed,
   durationSlots: number,
   appliance: ApplianceName,
 ): RecommendationOption {
-  const start = at(seed.startHour, seed.startMinute ?? 0);
+  const start = atOnDate(dateISO, seed.startHour, seed.startMinute ?? 0);
   const endDate = new Date(start);
   endDate.setMinutes(endDate.getMinutes() + durationSlots * 30);
   return {
@@ -51,6 +53,7 @@ function makeOption(
 }
 
 function makeAppliance(
+  dateISO: string,
   appliance: ApplianceName,
   durationSlots: number,
   powerKw: number,
@@ -63,9 +66,9 @@ function makeAppliance(
     duration: durationSlots,
     powerKw,
     options: [
-      makeOption("best", best, durationSlots, appliance),
-      makeOption("balanced", balanced, durationSlots, appliance),
-      makeOption("convenient", convenient, durationSlots, appliance),
+      makeOption(dateISO, "best", best, durationSlots, appliance),
+      makeOption(dateISO, "balanced", balanced, durationSlots, appliance),
+      makeOption(dateISO, "convenient", convenient, durationSlots, appliance),
     ],
   };
 }
@@ -87,10 +90,12 @@ function expand24To48(a: number[]): number[] {
   return a.flatMap((v) => [v, v]);
 }
 
-export const mockDailyRecommendation: DailyRecommendation = {
-  date: new Date().toISOString().slice(0, 10),
+export function buildMockDailyRecommendation(dateISO: string): DailyRecommendation {
+  return {
+  date: dateISO,
   appliances: [
     makeAppliance(
+      dateISO,
       "dishwasher",
       3,
       1.8,
@@ -123,6 +128,7 @@ export const mockDailyRecommendation: DailyRecommendation = {
       },
     ),
     makeAppliance(
+      dateISO,
       "ev_charger",
       12,
       7.2,
@@ -155,6 +161,7 @@ export const mockDailyRecommendation: DailyRecommendation = {
       },
     ),
     makeAppliance(
+      dateISO,
       "washing_machine",
       2,
       0.9,
@@ -189,16 +196,16 @@ export const mockDailyRecommendation: DailyRecommendation = {
   ],
   hvac_schedule: [
     {
-      start: at(5, 0),
-      end: at(7, 0),
+      start: atOnDate(dateISO, 5, 0),
+      end: atOnDate(dateISO, 7, 0),
       appliance: "hvac_heat",
       cost_usd: 0.45,
       co2_grams: 520,
       score: 0.86,
     },
     {
-      start: at(13, 0),
-      end: at(15, 0),
+      start: atOnDate(dateISO, 13, 0),
+      end: atOnDate(dateISO, 15, 0),
       appliance: "hvac_cool",
       cost_usd: 0.58,
       co2_grams: 480,
@@ -220,6 +227,11 @@ export const mockDailyRecommendation: DailyRecommendation = {
     co2_reduction_grams_monthly: 12400,
   },
 };
+}
+
+export const mockDailyRecommendation: DailyRecommendation = buildMockDailyRecommendation(
+  new Date().toISOString().slice(0, 10),
+);
 
 export const mockExternalData: ExternalData = {
   prices: expand24To48(PRICES_24),
