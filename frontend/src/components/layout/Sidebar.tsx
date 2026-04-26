@@ -20,7 +20,7 @@ export function Sidebar() {
         </span>
         <span className="text-h3 text-foreground">EnerGenius</span>
       </div>
-      <div className="mt-8 shrink-0 px-3 text-overline text-muted-foreground">Main Menu</div>
+      <div className="mt-8 shrink-0 px-3 text-body-sm font-medium text-muted-foreground">Main Menu</div>
       <nav className="mt-3 flex min-h-0 flex-1 flex-col gap-1 overflow-y-auto scrollbar-thin">
         {NAV_ITEMS.map((item) => {
           const active = location.pathname === item.to;

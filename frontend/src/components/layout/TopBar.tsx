@@ -44,11 +44,6 @@ export function TopBar() {
           </span>
         </Button>
 
-        <Button variant="ghost" size="icon" aria-label="Notifications" className="relative">
-          <span className="material-symbols-outlined text-[20px]">notifications</span>
-          <span className="absolute top-2 right-2 h-2 w-2 rounded-full bg-accent-primary border border-surface" />
-        </Button>
-
         {user ? (
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
