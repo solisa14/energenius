@@ -71,7 +71,7 @@ The single biggest failure mode of AI-assisted hackathons: the agent hallucinate
 
 **Things that ARE real in this build (do not stub these):**
 
-- The chat integration calls **Backboard.io** with the user_id as the persistent thread key, using the team's **Gemma 4** Google AI Studio API key. This is a working integration, not a stub.
+- The chat integration calls **Backboard.io** with a persistent thread per user. Backboard owns the team's Google AI Studio BYOK setup, and FastAPI overrides each response to use **Gemma 4** through Backboard (`llm_provider="google"`, `model_name="gemma-4-31b-it"`). This is a working integration, not a stub.
 - The frontend hooks, types, and components all wire to real FastAPI endpoint URLs.
 - The PuLP optimization is real — Cursor implements it, you review it.
 - The HVAC threshold logic, the adaptation update, the calendar parser — all real, all implemented by Cursor.
@@ -171,8 +171,8 @@ Backboard.io with Gemma 4. The full architecture is in @PRD.md.
   for prices, carbon, temperature, and grid mix. Do NOT add real API
   calls to OpenEI, Electricity Maps, or OpenWeatherMap.
 - `backend/app/services/backboard_client.py` is the ONE real external
-  integration. It POSTs to Backboard.io with the user_id as the
-  thread key.
+  integration. It creates/reuses Backboard threads and POSTs messages
+  with `llm_provider="google"` and `model_name="gemma-4-31b-it"`.
 - PuLP is the optimization library. Use `LpProblem(LpMinimize)`,
   `LpVariable`, `lpSum` — nothing fancier.
 
@@ -668,8 +668,8 @@ WHAT TO IMPLEMENT FULLY IN THIS PROMPT
      SUPABASE_SERVICE_ROLE_KEY=your-service-role-key
      SUPABASE_JWT_SECRET=your-jwt-secret
      BACKBOARD_API_KEY=your-backboard-key
-     GEMMA_API_KEY=your-gemma-key
-     BACKBOARD_BASE_URL=https://api.backboard.io  # confirm before Phase 4
+     BACKBOARD_BASE_URL=https://app.backboard.io/api
+     BACKBOARD_ASSISTANT_ID=your-backboard-assistant-id
 
 4. backend/app/config.py
    Pydantic BaseSettings reading those 6 vars from a .env file via
@@ -1073,11 +1073,14 @@ connected.
 Before implementing, search the web for the current Backboard.io API
 docs (specifically the chat / messages endpoint). Tell me:
 
-1. The exact endpoint URL for sending a chat message.
-2. The auth header format (Bearer token? x-api-key? something else?)
-3. The request body shape — how do we pass user_id as the persistent
-   thread key?
-4. How do we specify Gemma 4 as the model?
+1. The exact endpoint URL for creating a thread from an assistant.
+2. The exact endpoint URL for sending a chat message to an existing thread.
+3. The auth header format (Bearer token? x-api-key? something else?)
+4. The request body shape for message sends, including the per-message
+   model override:
+     llm_provider = "google"
+     model_name = "gemma-4-31b-it"
+   (Fallback option if needed: "gemma-4-26b-a4b-it".)
 5. How do we enable memory and web_search tools, if those are
    first-class concepts?
 6. The response body shape — where is the reply text, the thread_id,
@@ -1098,19 +1101,31 @@ Review what Cursor finds. If anything looks off, paste the actual Backboard docs
 ```text
 Per the plan, implement backend/app/services/backboard_client.py
 fully. Use httpx.AsyncClient. Read BACKBOARD_API_KEY,
-GEMMA_API_KEY, and BACKBOARD_BASE_URL from get_settings().
+BACKBOARD_BASE_URL, and BACKBOARD_ASSISTANT_ID from get_settings().
 
 Signature stays:
 async def backboard_chat(user_id: str, message: str,
                           thread_id: str | None = None) -> ChatResponse:
 
 Behavior:
-- POST to the Backboard chat endpoint with user_id as the persistent
-  thread key (per the docs you confirmed in Plan).
-- Include thread_id if provided; otherwise let Backboard create one
-  and read it back from the response.
-- Set model = gemma-4 (or whatever the docs specify).
-- Enable memory + web_search tools if those are first-class.
+- If thread_id is not provided, create a Backboard thread first with:
+    POST {BACKBOARD_BASE_URL}/assistants/{BACKBOARD_ASSISTANT_ID}/threads
+  Then use the returned thread_id for the message.
+- Send the user message to:
+    POST {BACKBOARD_BASE_URL}/threads/{thread_id}/messages
+  with headers:
+    {"X-API-Key": BACKBOARD_API_KEY}
+  and form data:
+    {
+      "content": message,
+      "llm_provider": "google",
+      "model_name": "gemma-4-31b-it",
+      "stream": "false",
+      "memory": "Auto",
+      "web_search": "Auto"
+    }
+- Do not call Google AI Studio / Gemma directly from FastAPI. The
+  team's Google AI Studio key is configured as BYOK inside Backboard.
 - Timeout: 30 seconds (Gemma can be slow on cold starts).
 - On any error (HTTPError, timeout, JSON decode failure):
     log to stderr and return a graceful ChatResponse with:

@@ -8,8 +8,8 @@ class Settings(BaseSettings):
     supabase_service_role_key: str
     supabase_jwt_secret: str
     backboard_api_key: str
-    gemma_api_key: str
     backboard_base_url: str
+    backboard_assistant_id: str
 
     model_config = SettingsConfigDict(
         env_file=(".env", "backend/.env"),
