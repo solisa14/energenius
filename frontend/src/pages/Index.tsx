@@ -4,12 +4,12 @@ import { useAuth } from "@/contexts/AuthContext";
 import { AuthRouteLoading } from "@/components/auth/AuthRouteLoading";
 
 export default function Index() {
-  const { session, loading } = useAuth();
+  const { loading } = useAuth();
   const navigate = useNavigate();
   useEffect(() => {
     if (loading) return;
-    navigate(session ? "/dashboard" : "/login", { replace: true });
-  }, [session, loading, navigate]);
+    navigate("/login", { replace: true });
+  }, [loading, navigate]);
   if (loading) {
     return <AuthRouteLoading />;
   }

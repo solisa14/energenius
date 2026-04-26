@@ -1,9 +1,8 @@
-import { useState, FormEvent, useEffect } from "react";
+import { useState, FormEvent } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
 import { friendlyAuthErrorMessage } from "@/lib/auth/errors";
 
@@ -12,11 +11,6 @@ export default function Login() {
   const [password, setPassword] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const navigate = useNavigate();
-  const { session, loading } = useAuth();
-
-  useEffect(() => {
-    if (!loading && session) navigate("/dashboard", { replace: true });
-  }, [session, loading, navigate]);
 
   const handleEmailLogin = async (e: FormEvent) => {
     e.preventDefault();
