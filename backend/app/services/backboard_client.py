@@ -174,20 +174,22 @@ async def search_memories(
             memories.append(_memory_from_raw(raw))
     if memories:
         return memories
-    listed = await list_memories(user_id, page_size=max(limit, 10))
+    listed = await _list_memories_with_client(client, user_id, page_size=max(limit, 10))
     return _keyword_rank(listed, query)[:limit]
 
 
-async def list_memories(user_id: str, page_size: int = 25) -> list[BackboardMemory]:
-    """List Backboard memories and apply local user scoping."""
-    async with httpx.AsyncClient(timeout=_BACKBOARD_TIMEOUT_SECONDS) as client:
-        response = await client.get(
-            f"{_base_url()}/assistants/{_assistant_id()}/memories",
-            headers=_headers(),
-            params={"page": 1, "page_size": page_size},
-        )
-        response.raise_for_status()
-        data = response.json()
+async def _list_memories_with_client(
+    client: httpx.AsyncClient,
+    user_id: str,
+    page_size: int,
+) -> list[BackboardMemory]:
+    response = await client.get(
+        f"{_base_url()}/assistants/{_assistant_id()}/memories",
+        headers=_headers(),
+        params={"page": 1, "page_size": page_size},
+    )
+    response.raise_for_status()
+    data = response.json()
     raw_memories = data.get("memories", [])
     if not isinstance(raw_memories, list):
         return []
@@ -196,6 +198,12 @@ async def list_memories(user_id: str, page_size: int = 25) -> list[BackboardMemo
         for raw in raw_memories
         if isinstance(raw, dict) and _memory_allowed(raw, user_id)
     ]
+
+
+async def list_memories(user_id: str, page_size: int = 25) -> list[BackboardMemory]:
+    """List Backboard memories and apply local user scoping."""
+    async with httpx.AsyncClient(timeout=_BACKBOARD_TIMEOUT_SECONDS) as client:
+        return await _list_memories_with_client(client, user_id, page_size)
 
 
 async def add_memory(

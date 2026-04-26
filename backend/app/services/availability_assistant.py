@@ -70,28 +70,30 @@ _TIME_RANGE_RE = re.compile(
     r"(?P<end>\d{1,2}(?::\d{2})?\s*(?:am|pm)?)",
     re.IGNORECASE,
 )
+_CLOCK_REFERENCE_RE = re.compile(r"\b\d{1,2}(?::\d{2})?\s*(?:am|pm)\b", re.IGNORECASE)
+_AVAILABILITY_INTENT_RE = re.compile(
+    r"\b(home|away|not home|wfh|working from home|work from home|out of town)\b",
+    re.IGNORECASE,
+)
+_SCHEDULE_EDIT_RE = re.compile(
+    r"\b(availability|schedule|calendar|mark me)\b",
+    re.IGNORECASE,
+)
 
 
 def _looks_schedule_related(message: str) -> bool:
     lowered = message.lower()
-    schedule_tokens = (
-        "home",
-        "away",
-        "not home",
-        "wfh",
-        "work from home",
-        "out of town",
-        "today",
-        "tomorrow",
-        "availability",
-        "schedule",
-        "mark me",
-        "calendar",
-        "am",
-        "pm",
-    )
-    return any(token in lowered for token in schedule_tokens) or bool(
-        _TIME_RANGE_RE.search(message)
+    if _AVAILABILITY_INTENT_RE.search(message):
+        return True
+    if not _SCHEDULE_EDIT_RE.search(message):
+        return False
+    return bool(
+        "today" in lowered
+        or "tomorrow" in lowered
+        or _DATE_ISO_RE.search(message)
+        or _MONTH_DAY_RE.search(message)
+        or _TIME_RANGE_RE.search(message)
+        or _CLOCK_REFERENCE_RE.search(message)
     )
 
 
@@ -499,6 +501,13 @@ def _heuristic_chat_decision(message: str, timezone_name: str | None) -> ChatDec
 
 async def _chat_decision(message: str, timezone_name: str | None) -> ChatDecision:
     heuristic = _heuristic_chat_decision(message, timezone_name)
+    if heuristic.kind == "ask_clarification":
+        return heuristic
+    if (
+        heuristic.kind == "apply_availability_change"
+        and ("all day" in message.lower() or _CLOCK_REFERENCE_RE.search(message))
+    ):
+        return heuristic
     if not _looks_schedule_related(message):
         return heuristic
     system_prompt = (
