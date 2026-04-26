@@ -75,7 +75,7 @@ const DEFAULT_APPLIANCES: ApplianceDraft[] = [
   },
   {
     id: "washing_machine",
-    label: "Washing machine",
+    label: "Washing Machine",
     icon: "local_laundry_service",
     enabled: true,
     durationSlots: 3,
@@ -93,7 +93,7 @@ const DEFAULT_APPLIANCES: ApplianceDraft[] = [
   },
   {
     id: "ev_charger",
-    label: "EV charger",
+    label: "EV Charger",
     icon: "electric_car",
     enabled: true,
     durationSlots: 8,
@@ -102,7 +102,7 @@ const DEFAULT_APPLIANCES: ApplianceDraft[] = [
   },
   {
     id: "water_heater_boost",
-    label: "Water heater boost",
+    label: "Water heater",
     icon: "water_heater",
     enabled: true,
     durationSlots: 4,
@@ -650,7 +650,15 @@ export default function Onboarding() {
                         {appliance.icon}
                       </span>
                       <div className="min-w-0 flex-1">
-                        <p className="font-medium text-slate-900">{appliance.label}</p>
+                        <p className="font-medium text-slate-900">
+                          {appliance.id === "washing_machine"
+                            ? "Washing Machine"
+                            : appliance.id === "ev_charger"
+                              ? "EV Charger"
+                              : appliance.id === "water_heater_boost"
+                                ? "Water Heater"
+                              : appliance.label}
+                        </p>
                         <p className="text-sm text-slate-500">
                           {appliance.requiresPresence ? "Needs someone home" : "Can run while away"}
                         </p>
@@ -659,7 +667,7 @@ export default function Onboarding() {
 
                     <div className="mt-4 grid gap-3 sm:grid-cols-2">
                       <label className="text-sm text-slate-600">
-                        <span className="mb-1 block">Duration (slots)</span>
+                        <span className="mb-1 block">Duration (0.5 hr)</span>
                         <Input
                           type="number"
                           min={1}
