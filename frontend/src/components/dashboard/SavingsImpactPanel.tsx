@@ -3,7 +3,6 @@ import { Card } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useRecommendations } from "@/hooks/useRecommendations";
 
-const MONTHLY_GOAL_USD = 60;
 const TODAY_BASELINE_USD = 4.81;
 
 function MetricCell({
@@ -42,7 +41,6 @@ export function SavingsImpactPanel() {
             </div>
           ))}
         </div>
-        <Skeleton className="mt-4 h-2 w-full" />
       </Card>
     );
   }
@@ -62,7 +60,6 @@ export function SavingsImpactPanel() {
   const monthlySavings = totals.estimated_monthly_savings_usd ?? 0;
   const co2Today = totals.co2_reduction_grams_today ?? 0;
   const co2MonthlyKg = (totals.co2_reduction_grams_monthly ?? 0) / 1000;
-  const goalPct = Math.min(100, (monthlySavings / MONTHLY_GOAL_USD) * 100);
 
   return (
     <Card>
@@ -106,25 +103,6 @@ export function SavingsImpactPanel() {
         </MetricCell>
       </div>
 
-      <div className="mt-6 flex items-center justify-between">
-        <span className="text-body-sm text-foreground">Monthly Goal: $60 saved</span>
-        <span className="text-body-sm text-muted-foreground tabular-nums">
-          {Math.round(goalPct)}%
-        </span>
-      </div>
-      <div
-        className="mt-2 h-2 w-full overflow-hidden bg-muted"
-        style={{ borderRadius: 4 }}
-        role="progressbar"
-        aria-valuenow={Math.round(goalPct)}
-        aria-valuemin={0}
-        aria-valuemax={100}
-      >
-        <div
-          className="h-full transition-[width] duration-500 ease-out"
-          style={{ width: `${goalPct}%`, backgroundColor: "#FFFE56" }}
-        />
-      </div>
     </Card>
   );
 }

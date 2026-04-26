@@ -1,4 +1,4 @@
-import { useMemo, useState, type CSSProperties, type ReactNode } from "react";
+import { useMemo, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import { Link } from "react-router-dom";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -189,7 +189,7 @@ function ApplianceBlock({
                   type="button"
                   onClick={onNavigate}
                   className={cn(
-                    "group flex h-10 w-full min-w-0 items-center justify-center gap-1.5 overflow-hidden rounded-md border border-primary/25 bg-primary/10 px-2 shadow-sm",
+                    "group flex h-10 w-full min-w-0 items-center justify-center overflow-hidden rounded-md border border-primary/25 bg-primary/10 px-2 shadow-sm",
                     "text-left transition-colors hover:bg-primary/15",
                     "focus:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1",
                   )}
@@ -197,19 +197,11 @@ function ApplianceBlock({
                   <span className="material-symbols-outlined shrink-0 text-[18px] text-primary">
                     {APPLIANCE_ICON[appliance]}
                   </span>
-                  <span className="min-w-0 flex-1 select-none text-caption leading-tight text-foreground sm:text-body-sm">
-                    <span className="block truncate font-medium">
-                      {formatTimeRange(slot.start, slot.end)}
-                    </span>
-                    <span className="mt-0.5 block truncate text-caption text-muted-foreground">
-                      {OPTION_TITLE[option.label]}
-                    </span>
-                  </span>
                 </button>
               </TooltipTrigger>
               <TooltipContent
                 side="top"
-                className="w-max max-w-[min(90vw,400px)] rounded-lg border border-border bg-card p-3 shadow-[var(--shadow-2)]"
+                className="z-[60] w-max max-w-[min(90vw,400px)] rounded-lg border border-border bg-card p-3 shadow-[var(--shadow-2)]"
               >
                 <div className="text-h4 text-card-foreground">{applianceLabel}</div>
                 <div className="text-body-sm text-muted-foreground mt-1 whitespace-nowrap">
@@ -266,25 +258,17 @@ function HvacBlock({
             type="button"
             onClick={() => scrollToRecommendationCardset()}
             className={cn(
-              "group flex h-10 w-full min-w-0 items-center justify-center gap-1.5 overflow-hidden rounded-md border border-border bg-muted/80 px-2 shadow-sm",
-              "text-left transition-colors hover:bg-muted",
+              "group flex h-10 w-full min-w-0 items-center justify-center overflow-hidden rounded-md border border-primary/25 bg-primary/10 px-2 shadow-sm",
+              "text-left transition-colors hover:bg-primary/15",
               "focus:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1",
             )}
           >
-            <span className="material-symbols-outlined shrink-0 text-[18px] text-muted-foreground">
+            <span className="material-symbols-outlined shrink-0 text-[18px] text-primary">
               {APPLIANCE_ICON.hvac}
-            </span>
-            <span className="min-w-0 flex-1 select-none text-caption leading-tight text-foreground sm:text-body-sm">
-              <span className="block truncate font-medium">
-                {formatTimeRange(slot.start, slot.end)}
-              </span>
-              <span className="mt-0.5 block truncate text-caption text-muted-foreground">
-                {modeLabel}
-              </span>
             </span>
           </button>
         </TooltipTrigger>
-        <TooltipContent className="w-max max-w-[min(90vw,400px)] rounded-lg border border-border bg-card p-3 shadow-[var(--shadow-2)]">
+        <TooltipContent className="z-[60] w-max max-w-[min(90vw,400px)] rounded-lg border border-border bg-card p-3 shadow-[var(--shadow-2)]">
           <div className="text-h4 text-card-foreground whitespace-nowrap">HVAC</div>
           <div className="text-body-sm text-muted-foreground mt-1 whitespace-nowrap">
             {formatTimeRange(slot.start, slot.end)}
@@ -309,6 +293,36 @@ function HvacLane({
   slots: TimelineSlot[];
   dayStart: Date;
 }) {
+  const mergedSlots = useMemo(() => {
+    if (slots.length <= 1) return slots;
+    const sorted = [...slots].sort(
+      (a, b) => new Date(a.start).getTime() - new Date(b.start).getTime(),
+    );
+    const merged: TimelineSlot[] = [];
+    for (const current of sorted) {
+      const prev = merged[merged.length - 1];
+      if (!prev) {
+        merged.push(current);
+        continue;
+      }
+      const sameMode = prev.appliance === current.appliance;
+      const touches =
+        new Date(prev.end).getTime() === new Date(current.start).getTime();
+      if (sameMode && touches) {
+        merged[merged.length - 1] = {
+          ...prev,
+          end: current.end,
+          cost_usd: prev.cost_usd + current.cost_usd,
+          co2_grams: prev.co2_grams + current.co2_grams,
+          score: current.score,
+        };
+      } else {
+        merged.push(current);
+      }
+    }
+    return merged;
+  }, [slots]);
+
   return (
     <div
       className="flex w-full items-center border-t border-border"
@@ -328,7 +342,7 @@ function HvacLane({
         style={{ minWidth: TIMELINE_MIN_W - LABEL_COL_W }}
       >
         <TimelineTrackGrid>
-          {slots.map((s, i) => (
+          {mergedSlots.map((s, i) => (
             <HvacBlock key={`${s.start}-${i}`} slot={s} dayStart={dayStart} />
           ))}
         </TimelineTrackGrid>
@@ -402,12 +416,32 @@ function NowDashedLine({
         left,
         background: `repeating-linear-gradient(
           to bottom,
-          hsl(var(--accent-primary)) 0px,
-          hsl(var(--accent-primary)) 5px,
+          hsl(var(--accent-primary) / 0.5) 0px,
+          hsl(var(--accent-primary) / 0.5) 5px,
           transparent 5px,
           transparent 9px
         )`,
         width: 2,
+      }}
+    />
+  );
+}
+
+function MouseGuideLine({
+  show,
+  lineRef,
+}: {
+  show: boolean;
+  lineRef: React.RefObject<HTMLDivElement>;
+}) {
+  if (!show) return null;
+  return (
+    <div
+      ref={lineRef}
+      className="pointer-events-none absolute bottom-0 top-0 z-[6] w-0 -translate-x-1/2 border-l-2 border-accent-secondary"
+      style={{
+        left: LABEL_COL_W,
+        borderColor: "hsl(var(--accent-secondary) / 0.5)",
       }}
     />
   );
@@ -501,6 +535,9 @@ export function DailyTimelinePanel({
   const now = new Date();
   const fraction = dayFraction(now, dayStart);
   const showNow = day === "today" && fraction !== null;
+  const [showMouseGuide, setShowMouseGuide] = useState(false);
+  const lanesRef = useRef<HTMLDivElement>(null);
+  const mouseGuideRef = useRef<HTMLDivElement>(null);
 
   const navigateAppliance = (appliance: Appliance) => {
     setTimelineFocus(appliance);
@@ -555,7 +592,30 @@ export function DailyTimelinePanel({
               >
                 <NowLabelAboveRuler fraction={fraction ?? 0} show={showNow} />
                 <HourRulerRow />
-                <div className="relative">
+                <div
+                  ref={lanesRef}
+                  className="relative"
+                  onMouseMove={(event) => {
+                    const el = lanesRef.current;
+                    if (!el) return;
+                    const rect = el.getBoundingClientRect();
+                    if (rect.width <= LABEL_COL_W) {
+                      setShowMouseGuide(false);
+                      return;
+                    }
+                    const x = event.clientX - rect.left;
+                    if (x < LABEL_COL_W || x > rect.width) {
+                      setShowMouseGuide(false);
+                      return;
+                    }
+                    setShowMouseGuide(true);
+                    if (mouseGuideRef.current) {
+                      mouseGuideRef.current.style.left = `${x}px`;
+                    }
+                  }}
+                  onMouseLeave={() => setShowMouseGuide(false)}
+                >
+                  <MouseGuideLine show={showMouseGuide} lineRef={mouseGuideRef} />
                   <NowDashedLine fraction={fraction ?? 0} show={showNow} />
                   {sortedAppliances.map((rec) => {
                     const opt = pickOption(rec, dateSelections?.[rec.appliance]);
