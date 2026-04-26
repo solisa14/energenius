@@ -1,28 +1,22 @@
-import { useMemo, useRef, useState, type CSSProperties, type ReactNode } from "react";
+import { useMemo, useRef, useState, type CSSProperties, type MouseEvent, type ReactNode } from "react";
 import { Link } from "react-router-dom";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from "@/components/ui/tooltip";
-import { useRecommendations } from "@/hooks/useRecommendations";
-import { useApplianceSelectionsStore } from "@/stores/applianceSelections";
-import {
-  TOTAL_SLOTS,
-  HOURS,
-  formatHourLabel,
   formatTimeRange,
   slotIndexFromISO,
   startOfDay,
+  TOTAL_SLOTS,
+  HOURS,
+  formatHourLabel,
   type DayChoice,
   isoDateForChoice,
   readableDateFromISO,
 } from "@/lib/timeline/grid";
+import { useRecommendations } from "@/hooks/useRecommendations";
+import { useApplianceSelectionsStore } from "@/stores/applianceSelections";
 import type {
   Appliance,
   ApplianceRecommendation,
@@ -137,6 +131,13 @@ function pickOption(
   return rec.options.find((o) => o.label === "best") ?? rec.options[0];
 }
 
+function endSlotIndexFromISO(iso: string, dayStart: Date): number {
+  const t = new Date(iso).getTime();
+  const minutes = Math.round((t - dayStart.getTime()) / 60000);
+  const slot = Math.ceil(minutes / 30);
+  return Math.max(0, Math.min(TOTAL_SLOTS, slot));
+}
+
 // ---------- Appliance block (neutral bar, details in tooltip) ----------
 
 function ApplianceBlock({
@@ -154,11 +155,12 @@ function ApplianceBlock({
 }) {
   const slot = option.slot;
   const startSlot = slotIndexFromISO(slot.start, dayStart);
-  const realEnd = Math.max(
-    startSlot + 1,
-    slotIndexFromISO(slot.end, dayStart),
-  );
-  const endSlot = Math.max(realEnd, startSlot + 2);
+  const endSlot = Math.max(startSlot + 1, endSlotIndexFromISO(slot.end, dayStart));
+  const [hoverTooltip, setHoverTooltip] = useState<{
+    visible: boolean;
+    clientX: number;
+    clientY: number;
+  }>({ visible: false, clientX: 0, clientY: 0 });
 
   return (
     <div
@@ -183,26 +185,38 @@ function ApplianceBlock({
             className="min-w-0 flex items-center"
             style={{ gridColumn: `${startSlot + 1} / ${endSlot + 1}` }}
           >
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <button
-                  type="button"
-                  onClick={onNavigate}
-                  className={cn(
-                    "group flex h-10 w-full min-w-0 items-center justify-center overflow-hidden rounded-md border border-primary/25 bg-primary/10 px-2 shadow-sm",
-                    "text-left transition-colors hover:bg-primary/15",
-                    "focus:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1",
-                  )}
-                >
-                  <span className="material-symbols-outlined shrink-0 text-[18px] text-primary">
-                    {APPLIANCE_ICON[appliance]}
-                  </span>
-                </button>
-              </TooltipTrigger>
-              <TooltipContent
-                side="top"
-                className="z-[60] w-max max-w-[min(90vw,400px)] rounded-lg border border-border bg-card p-3 shadow-[var(--shadow-2)]"
+            <div className="relative w-full">
+              <button
+                type="button"
+                onClick={onNavigate}
+                onMouseEnter={() => setHoverTooltip((prev) => ({ ...prev, visible: true }))}
+                onMouseLeave={() => setHoverTooltip((prev) => ({ ...prev, visible: false }))}
+                onMouseMove={(event: MouseEvent<HTMLButtonElement>) => {
+                  setHoverTooltip({
+                    visible: true,
+                    clientX: event.clientX,
+                    clientY: event.clientY,
+                  });
+                }}
+                className={cn(
+                  "group flex h-10 w-full min-w-0 items-center justify-center overflow-hidden rounded-md border border-primary/25 bg-primary/10 px-2 shadow-sm",
+                  "text-left transition-colors hover:bg-primary/15",
+                  "focus:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1",
+                )}
               >
+                <span className="material-symbols-outlined shrink-0 text-[18px] text-primary">
+                  {APPLIANCE_ICON[appliance]}
+                </span>
+              </button>
+              {hoverTooltip.visible && (
+                <div
+                  className="pointer-events-none fixed z-[120] w-max max-w-[min(90vw,400px)] rounded-lg border border-border p-3 shadow-[var(--shadow-2)]"
+                  style={{
+                    left: Math.min(hoverTooltip.clientX + 12, window.innerWidth - 320),
+                    top: Math.min(hoverTooltip.clientY + 12, window.innerHeight - 180),
+                    backgroundColor: "hsl(var(--card) / 0.75)",
+                  }}
+                >
                 <div className="text-h4 text-card-foreground">{applianceLabel}</div>
                 <div className="text-body-sm text-muted-foreground mt-1 whitespace-nowrap">
                   {formatTimeRange(slot.start, slot.end)}
@@ -216,8 +230,9 @@ function ApplianceBlock({
                 <div className="text-caption text-muted-foreground mt-2 whitespace-nowrap">
                   {OPTION_TITLE[option.label]}
                 </div>
-              </TooltipContent>
-            </Tooltip>
+                </div>
+              )}
+            </div>
           </div>
         </TimelineTrackGrid>
       </div>
@@ -235,11 +250,12 @@ function HvacBlock({
   dayStart: Date;
 }) {
   const startSlot = slotIndexFromISO(slot.start, dayStart);
-  const realEnd = Math.max(
-    startSlot + 1,
-    slotIndexFromISO(slot.end, dayStart),
-  );
-  const endSlot = Math.max(realEnd, startSlot + 2);
+  const endSlot = Math.max(startSlot + 1, endSlotIndexFromISO(slot.end, dayStart));
+  const [hoverTooltip, setHoverTooltip] = useState<{
+    visible: boolean;
+    clientX: number;
+    clientY: number;
+  }>({ visible: false, clientX: 0, clientY: 0 });
   const modeLabel =
     slot.appliance === "hvac_heat"
       ? "Heating"
@@ -252,36 +268,52 @@ function HvacBlock({
       className="min-w-0 flex items-center"
       style={{ gridColumn: `${startSlot + 1} / ${endSlot + 1}` }}
     >
-      <Tooltip>
-        <TooltipTrigger asChild>
-          <button
-            type="button"
-            onClick={() => scrollToRecommendationCardset()}
-            className={cn(
-              "group flex h-10 w-full min-w-0 items-center justify-center overflow-hidden rounded-md border border-primary/25 bg-primary/10 px-2 shadow-sm",
-              "text-left transition-colors hover:bg-primary/15",
-              "focus:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1",
-            )}
+      <div className="relative w-full">
+        <button
+          type="button"
+          onClick={() => scrollToRecommendationCardset()}
+          onMouseEnter={() => setHoverTooltip((prev) => ({ ...prev, visible: true }))}
+          onMouseLeave={() => setHoverTooltip((prev) => ({ ...prev, visible: false }))}
+          onMouseMove={(event: MouseEvent<HTMLButtonElement>) => {
+            setHoverTooltip({
+              visible: true,
+              clientX: event.clientX,
+              clientY: event.clientY,
+            });
+          }}
+          className={cn(
+            "group flex h-10 w-full min-w-0 items-center justify-center overflow-hidden rounded-md border border-primary/25 bg-primary/10 px-2 shadow-sm",
+            "text-left transition-colors hover:bg-primary/15",
+            "focus:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1",
+          )}
+        >
+          <span className="material-symbols-outlined shrink-0 text-[18px] text-primary">
+            {APPLIANCE_ICON.hvac}
+          </span>
+        </button>
+        {hoverTooltip.visible && (
+          <div
+            className="pointer-events-none fixed z-[120] w-max max-w-[min(90vw,400px)] rounded-lg border border-border p-3 shadow-[var(--shadow-2)]"
+            style={{
+              left: Math.min(hoverTooltip.clientX + 12, window.innerWidth - 320),
+              top: Math.min(hoverTooltip.clientY + 12, window.innerHeight - 180),
+              backgroundColor: "hsl(var(--card) / 0.75)",
+            }}
           >
-            <span className="material-symbols-outlined shrink-0 text-[18px] text-primary">
-              {APPLIANCE_ICON.hvac}
-            </span>
-          </button>
-        </TooltipTrigger>
-        <TooltipContent className="z-[60] w-max max-w-[min(90vw,400px)] rounded-lg border border-border bg-card p-3 shadow-[var(--shadow-2)]">
-          <div className="text-h4 text-card-foreground whitespace-nowrap">HVAC</div>
-          <div className="text-body-sm text-muted-foreground mt-1 whitespace-nowrap">
-            {formatTimeRange(slot.start, slot.end)}
+            <div className="text-h4 text-card-foreground whitespace-nowrap">HVAC</div>
+            <div className="text-body-sm text-muted-foreground mt-1 whitespace-nowrap">
+              {formatTimeRange(slot.start, slot.end)}
+            </div>
+            <div className="text-body-sm text-card-foreground mt-2 whitespace-nowrap">
+              ${slot.cost_usd.toFixed(2)}
+            </div>
+            <div className="text-body-sm text-card-foreground mt-1 whitespace-nowrap">
+              {Math.round(slot.co2_grams)} g CO₂
+            </div>
+            <div className="text-caption text-muted-foreground mt-2 whitespace-nowrap">{modeLabel}</div>
           </div>
-          <div className="text-body-sm text-card-foreground mt-2 whitespace-nowrap">
-            ${slot.cost_usd.toFixed(2)}
-          </div>
-          <div className="text-body-sm text-card-foreground mt-1 whitespace-nowrap">
-            {Math.round(slot.co2_grams)} g CO₂
-          </div>
-          <div className="text-caption text-muted-foreground mt-2 whitespace-nowrap">{modeLabel}</div>
-        </TooltipContent>
-      </Tooltip>
+        )}
+      </div>
     </div>
   );
 }
@@ -585,7 +617,6 @@ export function DailyTimelinePanel({
 
         {!isLoading && !error && data && !isEmpty && (
           <div className="overflow-x-auto scrollbar-thin">
-            <TooltipProvider delayDuration={200}>
               <div
                 className="relative"
                 style={{ minWidth: LABEL_COL_W + TIMELINE_MIN_W }}
@@ -635,7 +666,6 @@ export function DailyTimelinePanel({
                   )}
                 </div>
               </div>
-            </TooltipProvider>
           </div>
         )}
       </div>

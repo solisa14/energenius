@@ -14,12 +14,12 @@ export function Sidebar() {
   const location = useLocation();
   return (
     <aside className="relative z-30 hidden lg:flex sticky top-0 h-[100dvh] max-h-screen w-[240px] shrink-0 flex-col overflow-hidden border-r border-border bg-surface px-4 py-6">
-      <div className="flex shrink-0 items-center gap-2 px-3">
+      <NavLink to="/dashboard" className="flex shrink-0 items-center gap-2 rounded-md px-3 py-1 hover:bg-foreground/[0.04]">
         <span className="material-symbols-outlined text-[24px] text-accent-primary" style={{ fontVariationSettings: "'FILL' 1" }}>
           bolt
         </span>
         <span className="text-h3 text-foreground">EnerGenius</span>
-      </div>
+      </NavLink>
       <div className="mt-8 shrink-0 px-3 text-body-sm font-medium text-muted-foreground">Main Menu</div>
       <nav className="mt-3 flex min-h-0 flex-1 flex-col gap-1 overflow-y-auto scrollbar-thin">
         {NAV_ITEMS.map((item) => {

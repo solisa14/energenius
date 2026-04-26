@@ -148,6 +148,11 @@ function ChatBody({
     el.style.height = Math.min(el.scrollHeight, 96) + "px";
   }, [input]);
 
+  // Focus chat input when chat body opens/mounts.
+  useEffect(() => {
+    textareaRef.current?.focus();
+  }, []);
+
   const send = async (content: string) => {
     const text = content.trim();
     if (!text || isLoading) return;
