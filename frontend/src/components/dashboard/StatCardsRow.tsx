@@ -195,14 +195,6 @@ function StatCard({
             <SheetDescription>{label}</SheetDescription>
           </SheetHeader>
           <div className="mt-6 space-y-4 text-body text-foreground">{explanation}</div>
-          <a
-            href="#"
-            className="mt-6 inline-block text-body-sm font-medium text-foreground underline"
-            // TODO: wire to raw data view in a later phase
-            onClick={(e) => e.preventDefault()}
-          >
-            View raw data →
-          </a>
         </SheetContent>
       </Sheet>
     </>

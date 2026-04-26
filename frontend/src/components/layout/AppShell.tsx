@@ -19,7 +19,6 @@ export function AppShell({ title, breadcrumb, children }: Props) {
         <div className="flex flex-1 flex-col min-w-0">
           <TopBar />
           <main className="flex-1 px-6 py-8">
-            {breadcrumb && <div className="text-caption text-muted-foreground">{breadcrumb}</div>}
             <h1 className="text-h1 text-foreground mt-1">{title}</h1>
             <div className="mt-6">{children}</div>
           </main>
