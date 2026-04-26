@@ -19,7 +19,13 @@ export function ProtectedRoute({
     return <AuthRouteLoading />;
   }
   if (!session) return <Navigate to="/login" replace />;
-  const hasCompletedOnboarding = Boolean(profile?.home_zip);
+  const hasCompletedOnboarding =
+    profile === null ||
+    Boolean(
+      profile.home_zip ||
+      profile.full_name ||
+      profile.monthly_utility_bill_usd !== null,
+    );
   if (requireOnboarded && !hasCompletedOnboarding) {
     return <Navigate to="/onboarding" replace state={{ from: location.pathname }} />;
   }
