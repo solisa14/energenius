@@ -1,0 +1,66 @@
+# EnerGenius — Cursor Project Rules
+
+## Project context
+EnerGenius is an 8-hour hackathon build of an energy-optimization
+dashboard. Frontend: React + Vite + TanStack Query + Zustand + shadcn/ui.
+Backend: FastAPI + PuLP + supabase-py. Auth + DB: Supabase. Chat:
+Backboard.io with Gemma 4. The full architecture is in @PRD.md.
+
+## Workflow
+- Default to Plan mode in Chat for any multi-file change. Propose a
+  numbered plan, wait for confirmation, then apply edits.
+- Ask clarifying questions before generating when intent is ambiguous.
+- Make atomic edits. One feature at a time. Do not refactor outside
+  the current scope.
+- After every change, list the files touched and a one-line summary
+  of each.
+
+## Frontend constraints
+- Use Supabase's default auth helpers ONLY. No custom JWT decoding,
+  no refresh token logic, no MFA, no password rules, no email
+  verification flows.
+- All API calls go through the typed client in `src/lib/api/client.ts`.
+- All server state through TanStack Query hooks in `src/hooks/`.
+- All design tokens (colors, spacing, type, radii, shadows) come from
+  Tailwind theme — do not hardcode hex values in components.
+- Buttons, badges, cards, sheets, toasts, modals: always use shadcn/ui
+  primitives, never raw HTML.
+- Loading states: shimmer that matches the final layout. Never
+  spinners. Never skeleton boxes the wrong size.
+
+## Backend constraints
+- Pydantic models in `backend/app/models/schemas.py` are the single
+  source of truth for request/response shapes. The TypeScript types
+  in `src/lib/api/types.ts` mirror them by hand.
+- Every router uses the `get_current_user_id` dependency from
+  `backend/app/auth.py`.
+- Database access goes through `get_supabase()` from
+  `backend/app/database.py`.
+- `backend/app/services/external_data.py` returns hardcoded constants
+  for prices, carbon, temperature, and grid mix. Do NOT add real API
+  calls to OpenEI, Electricity Maps, or OpenWeatherMap.
+- `backend/app/services/backboard_client.py` is the ONE real external
+  integration. It POSTs to Backboard.io with the user_id as the
+  thread key.
+- PuLP is the optimization library. Use `LpProblem(LpMinimize)`,
+  `LpVariable`, `lpSum` — nothing fancier.
+
+## Anti-patterns (NEVER do these)
+- No retry-with-backoff. No rate limiting. No circuit breakers.
+- No Sentry, PostHog, Datadog, or custom logging infra.
+- No unit, integration, e2e, snapshot, or smoke tests unless I
+  explicitly ask in a prompt.
+- No CI config. No Dockerfile. No deployment scripts.
+- No environment-switching logic beyond reading from .env.
+- No CORS allowlist beyond `["*"]`. No CSP headers.
+- No multi-tenancy beyond Supabase RLS.
+- No password complexity rules, email verification, MFA on the
+  frontend.
+
+## Style
+- TypeScript: strict mode, explicit return types on exported functions.
+- Python: type hints on every function signature. Pydantic for
+  request/response shapes. Plain dicts only inside service internals.
+- Comments only where intent isn't obvious from the code. No
+  decorative banners, no "// fetch data" above a fetch call.
+- Real content, never lorem ipsum. Use the copy in @PRD.md verbatim.

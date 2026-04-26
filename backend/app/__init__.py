@@ -1,0 +1,1 @@
+"""EnerGenius application package."""
