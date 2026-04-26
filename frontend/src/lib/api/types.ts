@@ -86,8 +86,8 @@ export interface ChatRequest {
 export interface ChatResponse {
   reply: string;
   thread_id: string;
-  /** Mirrors backend: arbitrary source dicts. */
-  sources?: Record<string, unknown>[] | null;
+  /** Human-readable context lines (memory excerpts, file labels). */
+  sources?: string[] | null;
   assistant_action?: AvailabilityAssistantAction | null;
 }
 

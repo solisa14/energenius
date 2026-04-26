@@ -39,9 +39,53 @@ def _assistant_id() -> str:
     return get_settings().backboard_assistant_id
 
 
+def _text_from_structure(obj: Any, depth: int = 0) -> str | None:
+    """Pull human-readable text from nested API payloads without repr(dict) dumps."""
+    if depth > 6:
+        return None
+    if isinstance(obj, str):
+        stripped = obj.strip()
+        return stripped if stripped else None
+    if isinstance(obj, dict):
+        for key in ("text", "message", "content", "summary", "body", "value"):
+            if key not in obj:
+                continue
+            nested = _text_from_structure(obj[key], depth + 1)
+            if nested:
+                return nested
+        return None
+    if isinstance(obj, list):
+        parts: list[str] = []
+        for el in obj[:5]:
+            nested = _text_from_structure(el, depth + 1)
+            if nested:
+                parts.append(nested)
+        return "; ".join(parts) if parts else None
+    return None
+
+
 def _memory_content(raw: dict[str, Any]) -> str:
     content = raw.get("content", raw.get("memory", ""))
-    return content if isinstance(content, str) else str(content)
+    if isinstance(content, str):
+        return content.strip()
+    if isinstance(content, (dict, list)):
+        extracted = _text_from_structure(content)
+        return extracted if extracted else ""
+    if content in (None, ""):
+        return ""
+    return str(content).strip()
+
+
+def _file_label(item: Any) -> str | None:
+    if isinstance(item, str):
+        s = item.strip()
+        return s if s else None
+    if isinstance(item, dict):
+        for key in ("filename", "name", "path", "file_id", "id"):
+            v = item.get(key)
+            if isinstance(v, str) and v.strip():
+                return v.strip()
+    return None
 
 
 def _memory_allowed(raw: dict[str, Any], user_id: str) -> bool:
@@ -212,7 +256,11 @@ async def store_user_message(
         if isinstance(raw, dict) and _memory_allowed(raw, user_id)
     ]
     raw_files = data.get("retrieved_files") or []
-    files = [str(item) for item in raw_files if item]
+    files: list[str] = []
+    for item in raw_files:
+        label = _file_label(item)
+        if label:
+            files.append(label)
     op_id = data.get("memory_operation_id")
     return BackboardMessageContext(
         thread_id=thread_id,

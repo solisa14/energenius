@@ -3,8 +3,8 @@
 from __future__ import annotations
 
 import asyncio
+import re
 import sys
-from typing import Any
 
 import httpx
 
@@ -32,24 +32,42 @@ def _dedupe_memories(memories: list[BackboardMemory]) -> list[BackboardMemory]:
     return out
 
 
+_USER_SCOPED_PREFIX = re.compile(r"^For user [0-9a-f-]{36}:\s*", re.IGNORECASE)
+
+
+def _excerpt_for_source_line(content: str, limit: int = 140) -> str:
+    text = content.replace("\n", " ").strip()
+    match = _USER_SCOPED_PREFIX.match(text)
+    if match:
+        text = text[match.end() :].strip()
+    if len(text) <= limit:
+        return text
+    return text[: limit - 3].rstrip() + "..."
+
+
+def _memory_source_label(memory: BackboardMemory) -> str | None:
+    text = _excerpt_for_source_line(memory.content)
+    if not text:
+        return None
+    if memory.score is not None:
+        return f"{text} · relevance {memory.score:.2f}"
+    return text
+
+
 def _sources(
     memories: list[BackboardMemory],
     retrieved_files: list[str],
-) -> list[dict[str, Any]] | None:
-    sources: list[dict[str, Any]] = [
-        {
-            "type": "memory",
-            "id": memory.id,
-            "content": memory.content,
-            "score": memory.score,
-        }
-        for memory in memories
-    ]
-    sources.extend(
-        {"type": "backboard_file", "filename": filename}
-        for filename in retrieved_files
-    )
-    return sources or None
+) -> list[str] | None:
+    lines: list[str] = []
+    for memory in memories:
+        label = _memory_source_label(memory)
+        if label:
+            lines.append(label)
+    for filename in retrieved_files:
+        stripped = filename.strip()
+        if stripped:
+            lines.append(f"File: {stripped}")
+    return lines or None
 
 
 def _report_backboard_error(operation: str, user_id: str, exc: Exception) -> None:

@@ -96,7 +96,7 @@ class ChatRequest(BaseModel):
 class ChatResponse(BaseModel):
     reply: str
     thread_id: str
-    sources: list[dict[str, Any]] | None = None
+    sources: list[str] | None = None
     assistant_action: AvailabilityAssistantAction | None = None
 
 

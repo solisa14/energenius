@@ -18,7 +18,7 @@ interface Message {
   id: string;
   role: "user" | "assistant";
   content: string;
-  sources?: Array<string | Record<string, unknown>>;
+  sources?: string[];
   pending?: boolean;
   errored?: boolean;
 }
@@ -109,11 +109,7 @@ function MessageBubble({ msg }: { msg: Message }) {
       </div>
       {!isUser && msg.sources && msg.sources.length > 0 && (
         <div className="mt-1 text-caption text-muted-foreground">
-          {msg.sources
-            .map((s) =>
-              typeof s === "string" ? s : JSON.stringify(s),
-            )
-            .join(" · ")}
+          {msg.sources.filter((s) => s.trim()).join(" · ")}
         </div>
       )}
     </div>
