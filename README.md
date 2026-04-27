@@ -312,20 +312,3 @@ To run the frontend in fully mocked mode without any backend:
 VITE_USE_MOCKS=true
 npm run dev
 ```
-
----
-
-## Contributing
-
-This project was built as a hackathon prototype. Contributions are welcome. A few areas that would benefit from development:
-
-- **Real market data integration** -- Replace the mocked price/carbon/weather data in `backend/app/services/external_data.py` with live API calls to OpenEI, Electricity Maps, and OpenWeatherMap. The function signatures are designed to stay the same.
-- **Thermal modeling** -- Replace the simple HVAC threshold model with one that accounts for indoor thermal mass and occupancy patterns.
-- **Calendar integration** -- Extend the calendar parser to handle real ICS feeds and Google Calendar API responses.
-- **Testing** -- Add unit tests for the optimization engine and integration tests for the API endpoints.
-
----
-
-## License
-
-This project does not currently specify a license. Contact the repository owner for usage terms.
