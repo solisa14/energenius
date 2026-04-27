@@ -19,15 +19,33 @@ export const API_BASE: string =
   (import.meta.env.VITE_API_URL as string | undefined) ??
   "http://localhost:8000";
 
+function buildApiUrl(path: string): string {
+  const normalizedBase = API_BASE.replace(/\/+$/, "");
+  const normalizedPath = path.startsWith("/") ? path : `/${path}`;
+  return `${normalizedBase}${normalizedPath}`;
+}
+
 async function getAuthHeaders(): Promise<HeadersInit> {
   const {
     data: { session },
   } = await supabase.auth.getSession();
+  let accessToken: string | undefined = session?.access_token;
+  if (!accessToken) {
+    const {
+      data: { session: refreshedSession },
+    } = await supabase.auth.refreshSession();
+    accessToken = refreshedSession?.access_token;
+  }
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
   };
-  if (session?.access_token) {
-    headers["Authorization"] = `Bearer ${session.access_token}`;
+  if (accessToken) {
+    headers["Authorization"] = `Bearer ${accessToken}`;
+  } else {
+    throw new ApiError(
+      401,
+      "No active Supabase session found. Please sign out and sign back in.",
+    );
   }
   return headers;
 }
@@ -98,7 +116,7 @@ export async function getRecommendations(
   }
   const headers = await getAuthHeaders();
   const res = await fetch(
-    `${API_BASE}/api/recommendations?date=${encodeURIComponent(target)}`,
+    buildApiUrl(`/api/recommendations?date=${encodeURIComponent(target)}`),
     { headers },
   );
   return handle<DailyRecommendation>(res, "getRecommendations");
@@ -108,7 +126,7 @@ export async function postFeedback(
   event: FeedbackEvent,
 ): Promise<FeedbackResponse> {
   const headers = await getAuthHeaders();
-  const res = await fetch(`${API_BASE}/api/feedback`, {
+  const res = await fetch(buildApiUrl("/api/feedback"), {
     method: "POST",
     headers,
     body: JSON.stringify(event),
@@ -121,7 +139,7 @@ export async function postChat(
   threadId?: string,
 ): Promise<ChatResponse> {
   const headers = await getAuthHeaders();
-  const res = await fetch(`${API_BASE}/api/chat`, {
+  const res = await fetch(buildApiUrl("/api/chat"), {
     method: "POST",
     headers,
     body: JSON.stringify({ message, thread_id: threadId }),
@@ -139,7 +157,9 @@ export async function getExternalData(
   }
   const headers = await getAuthHeaders();
   const res = await fetch(
-    `${API_BASE}/api/external-data?zip=${encodeURIComponent(zip)}&date=${encodeURIComponent(date)}`,
+    buildApiUrl(
+      `/api/external-data?zip=${encodeURIComponent(zip)}&date=${encodeURIComponent(date)}`,
+    ),
     { headers },
   );
   return handle<ExternalData>(res, "getExternalData");

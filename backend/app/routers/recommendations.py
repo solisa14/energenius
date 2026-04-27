@@ -148,12 +148,13 @@ def get_recommendations(
         supabase.table("profiles")
         .select("*")
         .eq("id", user_id)
-        .single()
+        .limit(1)
         .execute()
     )
-    if getattr(prof_res, "data", None) is None:
-        raise HTTPException(status_code=404, detail="Profile not found")
-    profile: dict[str, Any] = prof_res.data
+    prof_rows = list(prof_res.data or [])
+    profile: dict[str, Any] = (
+        cast(dict[str, Any], prof_rows[0]) if prof_rows else {}
+    )
     c_w = float(profile.get("cost_weight", 0.4))
     e_w = float(profile.get("emissions_weight", profile.get("carbon_weight", 0.2)))
     s_w = float(
